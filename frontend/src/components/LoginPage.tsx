@@ -31,12 +31,12 @@ const LoginPage: React.FC = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate(formData);
     if (Object.keys(validationErrors).length === 0) {
-      // Handle successful login (e.g., redirect to dashboard)
-      history.push('/dashboard');
+      // Handle login logic here
+      history.push('/profile');
     } else {
       setErrors(validationErrors);
     }

@@ -43,7 +43,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-page">
       <h2>Login</h2>
       <form onSubmit={handleSubmit}>
         <div>
@@ -54,7 +54,7 @@ const LoginPage: React.FC = () => {
             value={formData.email}
             onChange={handleChange}
           />
-          {errors.email && <span className="error">{errors.email}</span>}
+          {errors.email && <span>{errors.email}</span>}
         </div>
         <div>
           <label>Password:</label>
@@ -64,7 +64,7 @@ const LoginPage: React.FC = () => {
             value={formData.password}
             onChange={handleChange}
           />
-          {errors.password && <span className="error">{errors.password}</span>}
+          {errors.password && <span>{errors.password}</span>}
         </div>
         <button type="submit">Login</button>
       </form>

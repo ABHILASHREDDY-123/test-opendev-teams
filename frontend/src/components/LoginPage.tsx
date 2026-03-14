@@ -8,7 +8,7 @@ interface LoginFormState {
 
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState<LoginFormState>({ email: '', password: '' });
-  const [errors, setErrors] = useState<{ [key: string]: string }>({ email: '', password: '' });
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const history = useHistory();
 
   const validate = (values: LoginFormState) => {
@@ -54,7 +54,7 @@ const LoginPage: React.FC = () => {
             value={formData.email}
             onChange={handleChange}
           />
-          {errors.email && <span className="error">{errors.email}</span>}
+          {errors.email && <p className="error">{errors.email}</p>}
         </div>
         <div>
           <label>Password:</label>
@@ -64,7 +64,7 @@ const LoginPage: React.FC = () => {
             value={formData.password}
             onChange={handleChange}
           />
-          {errors.password && <span className="error">{errors.password}</span>}
+          {errors.password && <p className="error">{errors.password}</p>}
         </div>
         <button type="submit">Login</button>
       </form>

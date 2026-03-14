@@ -8,51 +8,51 @@ interface LoginFormState {
 
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState<LoginFormState>({ email: '', password: '' });
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<LoginFormState>({ email: '', password: '' });
   const history = useHistory();
 
-  const validate = (values: LoginFormState) => {
-    const errors: { [key: string]: string } = {};
-    if (!values.email) {
-      errors.email = 'Email is required';
-    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email)) {
-      errors.email = 'Invalid email address';
+  const validate = () => {
+    let valid = true;
+    const newErrors: LoginFormState = { email: '', password: '' };
+
+    if (!formData.email) {
+      newErrors.email = 'Email is required.';
+      valid = false;
+    } else if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/g.test(formData.email)) {
+      newErrors.email = 'Invalid email format.';
+      valid = false;
     }
-    if (!values.password) {
-      errors.password = 'Password is required';
-    } else if (values.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required.';
+      valid = false;
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long.';
+      valid = false;
     }
-    return errors;
+
+    setErrors(newErrors);
+    return valid;
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validationErrors = validate(formData);
-    if (Object.keys(validationErrors).length === 0) {
-      // Handle successful login (e.g., API call)
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (validate()) {
+      // Handle login logic here
       history.push('/profile');
-    } else {
-      setErrors(validationErrors);
     }
   };
 
   return (
-    <div className="login-container">
+    <div className="login-page">
       <h2>Login</h2>
       <form onSubmit={handleSubmit}>
         <div>
           <label>Email:</label>
           <input
             type="email"
-            name="email"
             value={formData.email}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           />
           {errors.email && <span className="error">{errors.email}</span>}
         </div>
@@ -60,9 +60,8 @@ const LoginPage: React.FC = () => {
           <label>Password:</label>
           <input
             type="password"
-            name="password"
             value={formData.password}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           />
           {errors.password && <span className="error">{errors.password}</span>}
         </div>

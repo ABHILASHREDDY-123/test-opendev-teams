@@ -1,49 +1,42 @@
-body {
-  font-family: Arial, sans-serif;
-  background-color: #f4f4f9;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+.login-page, .profile-page {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
 }
 
-.login-page, .dashboard {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  width: 300px;
+.login-page h2, .profile-page h2 {
   text-align: center;
 }
 
-.login-page div, .dashboard div {
+.login-page form div, .profile-page form div {
   margin-bottom: 15px;
 }
 
-.login-page label, .dashboard label {
+.login-page label, .profile-page label {
   display: block;
   margin-bottom: 5px;
 }
 
-.login-page input, .dashboard input {
+.login-page input, .profile-page input {
   width: 100%;
   padding: 8px;
   box-sizing: border-box;
 }
 
-.login-page button, .dashboard button {
+.login-page button, .profile-page button {
   width: 100%;
   padding: 10px;
   background-color: #007bff;
-  color: #fff;
+  color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
 }
 
-.login-page button:hover, .dashboard button:hover {
+.login-page button:hover, .profile-page button:hover {
   background-color: #0056b3;
 }
 

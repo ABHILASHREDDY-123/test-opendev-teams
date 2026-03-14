@@ -36,7 +36,7 @@ const LoginPage: React.FC = () => {
     const validationErrors = validate(formData);
     if (Object.keys(validationErrors).length === 0) {
       // Handle login logic here
-      console.log('Form submitted:', formData);
+      console.log('Login successful', formData);
       navigate('/profile');
     } else {
       setErrors(validationErrors);

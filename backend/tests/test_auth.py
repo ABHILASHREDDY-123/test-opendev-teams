@@ -1,30 +1,36 @@
 from fastapi.testclient import TestClient
-from backend.auth import app
+from main import app
 import pytest
+from pydantic import BaseModel
+from python_jose import jwt
 
 client = TestClient(app)
 
-# Test the register endpoint
-def test_register_user):
- response = client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password123'})
- assert response.status_code == 200
- assert response.json()['message'] == 'User created successfully'
+class User(BaseModel):
+    email: str
+    hashed_password: str
 
-# Test the login endpoint
-def test_login_user):
- response = client.post('/auth/login', json={'email': 'test@example.com', 'password': 'password123'})
- assert response.status_code == 200
- assert 'access_token' in response.json()
- assert 'token_type' in response.json()
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
-# Test the login endpoint with invalid credentials
-def test_login_user_invalid_credentials):
- response = client.post('/auth/login', json={'email': 'test@example.com', 'password': 'wrongpassword'})
- assert response.status_code == 401
- assert response.json()['detail'] == 'Invalid email or password'
+def test_register_success():
+    # Test successful registration
+    response = client.post("/auth/register", json={"email": "user@example.com", "hashed_password": "password"})
+    assert response.status_code == 200
 
-# Test the register endpoint with duplicate email
-def test_register_user_duplicate_email):
- client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password123'})
- response = client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password123'})
- assert response.status_code == 400
+def test_register_duplicate_email():
+    # Test registration with duplicate email
+    response = client.post("/auth/register", json={"email": "user@example.com", "hashed_password": "password"})
+    response = client.post("/auth/register", json={"email": "user@example.com", "hashed_password": "password"})
+    assert response.status_code == 400
+
+def test_login_success():
+    # Test successful login
+    response = client.post("/auth/login", data={"grant_type": "password", "username": "user@example.com", "password": "password"})
+    assert response.status_code == 200
+
+def test_login_wrong_password():
+    # Test login with wrong password
+    response = client.post("/auth/login", data={"grant_type": "password", "username": "user@example.com", "password": "wrong_password"})
+    assert response.status_code == 401

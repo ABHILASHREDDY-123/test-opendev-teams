@@ -1,50 +1,70 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from passlib.context import CryptContext
-from python_jose import jwt
-import datetime
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
 
 app = FastAPI()
 
-# Define the user model
+# OAuth2 schema
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# Password context
+pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
+
+# JWT secret key
+SECRET_KEY = "secret_key"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# User model
 class User(BaseModel):
     email: str
-    password: str
+    hashed_password: str
 
-# Define the token model
+# Token model
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-# Initialize the password context
-pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
-
-# Initialize the in-memory user store
+# In-memory user store
 users = {}
 
-# Define the authentication router
-@app.post('/auth/register')
-def register(user: User):
-    # Hash the password
-    hashed_password = pwd_context.hash(user.password)
-    # Check if the user already exists
-    if user.email in users:
-        raise HTTPException(status_code=400, detail='Email already exists')
-    # Create a new user
-    users[user.email] = hashed_password
-    return {'message': 'User created successfully'}
+# Register user
+@app.post("/auth/register")
+def register(email: str, password: str):
+    # Hash password
+    hashed_password = pwd_context.hash(password)
+    # Create user
+    user = User(email=email, hashed_password=hashed_password)
+    # Add user to in-memory store
+    users[email] = user
+    return {
+        "message": "User created successfully"
+    }
 
-# Define the login endpoint
-@app.post('/auth/login')
-def login(user: User):
-    # Check if the user exists
-    if user.email not in users:
-        raise HTTPException(status_code=401, detail='Invalid email or password')
-    # Verify the password
-    if not pwd_context.verify(user.password, users[user.email]):
-        raise HTTPException(status_code=401, detail='Invalid email or password')
-    # Generate a JWT token
-    payload = {'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}
-    token = jwt.encode(payload, 'secret_key', algorithm='HS256')
-    return {'access_token': token, 'token_type': 'bearer'}
+# Login user
+@app.post("/auth/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Find user
+    user = users.get(form_data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+    # Verify password
+    if not pwd_context.verify(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+    # Generate JWT token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = jwt.encode(
+        {
+            "sub": user.email,
+            "exp": datetime.utcnow() + access_token_expires
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }

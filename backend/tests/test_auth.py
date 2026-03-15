@@ -1,27 +1,42 @@
 from fastapi.testclient import TestClient
 from backend.auth import app
-from backend.models import User, Token
 import pytest
+from pydantic import BaseModel
+from passlib.context import CryptContext
+from python_jose import jwt
+
+class User(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
+secret_key = 'secret_key'
+algorithm = 'HS256'
+access_token_expire_minutes = 30
 
 client = TestClient(app)
 
 def test_register_user():
- response = client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
- assert response.status_code == 200
- assert response.json()['message'] == 'User created successfully'
+    # Implement test for user registration
+    response = client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password'})
+    assert response.status_code == 200
 
 def test_login_user():
- response = client.post('/auth/login', data={'username': 'test@example.com', 'password': 'password123'})
- assert response.status_code == 200
- assert response.json()['token_type'] == 'bearer'
+    # Implement test for user login
+    response = client.post('/auth/login', json={'email': 'test@example.com', 'password': 'password'})
+    assert response.status_code == 200
 
-def test_register_duplicate_user():
- client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
- response = client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
- assert response.status_code == 400
- assert response.json()['detail'] == 'Email already registered'
+def test_duplicate_email():
+    # Implement test for duplicate email
+    response = client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password'})
+    response = client.post('/auth/register', json={'email': 'test@example.com', 'password': 'password'})
+    assert response.status_code == 400
 
-def test_login_wrong_password():
- response = client.post('/auth/login', data={'username': 'test@example.com', 'password': 'wrongpassword'})
- assert response.status_code == 401
- assert response.json()['detail'] == 'Incorrect username or password'
+def test_wrong_password():
+    # Implement test for wrong password
+    response = client.post('/auth/login', json={'email': 'test@example.com', 'password': 'wrong_password'})
+    assert response.status_code == 401

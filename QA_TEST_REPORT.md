@@ -1,7 +1,10 @@
-## QA Test Report
-### Introduction
-The API endpoints were tested using curl.
-### Test Results
-* GET https://example.com/api/healthcheck: Failed. Expected a JSON response, but received an HTML page instead.
-### Conclusion
-The API endpoints are not properly secured and do not return the expected responses.
+# QA Test Report for Auth API Implementation
+## Introduction
+This report documents the independent verification of the auth API implementation.
+## Test Environment
+* Branch: feature/auth-api
+* PR Number: 1
+## Test Results
+Unfortunately, no source files were found in the backend/ folder, which means the implementation is incomplete.
+## Conclusion
+Based on the test results, this PR cannot be approved. The implementation needs to be completed before further testing can be done.

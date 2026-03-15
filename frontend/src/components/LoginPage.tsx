@@ -1,30 +1,43 @@
 import React, { useState } from 'react';
-import './LoginPage.css';
+import { useForm } from 'react-hook-form';
+import axios from 'axios';
+
+interface LoginForm {
+  email: string;
+  password: string;
+}
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { register, handleSubmit, errors } = useForm<LoginForm>();
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    // TODO: Implement login logic
+  const onSubmit = async (data: LoginForm) => {
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/login', data);
+      // Handle successful login
+      console.log(response);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="login-page">
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Email:
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label>
-          Password:
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <button type="submit">Login</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div>
+      <h1>Login Page</h1>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <label>Email:</label>
+        <input {...register('email')} />
+        {errors.email && <div>{errors.email.message}</div>}
+        <label>Password:</label>
+        <input {...register('password')} />
+        {errors.password && <div>{errors.password.message}</div>}
+        <button type='submit'>Login</button>
+        {loading && <div>Loading...</div>}
+        {error && <div>{error}</div>}
       </form>
     </div>
   );

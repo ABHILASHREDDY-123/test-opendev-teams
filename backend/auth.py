@@ -1,35 +1,27 @@
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+from python_jose import jwt
 from datetime import datetime, timedelta
-from typing import Optional
+from backend.models import UserRegister, UserLogin
 
-class Auth:
- def __init__(self, secret_key: str, algorithm: str, access_token_expire_minutes: int):
- self.secret_key = secret_key
- self.algorithm = algorithm
- self.access_token_expire_minutes = access_token_expire_minutes
+crypt_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
+secret_key = '09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7'
+algorithm = 'HS256'
+access_token_expires = timedelta(minutes=30)
 
- def hash_password(self, password: str):
- pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
- return pwd_context.hash(password)
+def hash_password(password: str):
+    return crypt_context.hash(password)
 
- def verify_password(self, plain_password: str, hashed_password: str):
- pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
- return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, hashed_password: str):
+    return crypt_context.verify(plain_password, hashed_password)
 
- def create_access_token(self, data: dict):
- access_token_expires = timedelta(minutes=self.access_token_expire_minutes)
- return jwt.encode({
- **data,
- "exp": datetime.utcnow() + access_token_expires
- }, self.secret_key, algorithm=self.algorithm)
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    if 'exp' not in to_encode:
+        expire = datetime.utcnow() + access_token_expires
+        to_encode.update({'exp': expire})
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm, headers=None)
+    return encoded_jwt
 
- def get_current_user(self, token: str):
- try:
- payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
- username: str = payload.get("sub")
- if username is None:
- raise JWTError
- return username
- except JWTError:
- return None
+def get_current_user(token: str):
+    payload = jwt.decode(token=token, key=secret_key, algorithms=[algorithm])
+    return payload

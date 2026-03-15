@@ -1,55 +1,33 @@
 from fastapi.testclient import TestClient
-from main import app
-from auth import Auth
+from backend.main import app
+from backend.models import UserRegister, UserLogin
 import pytest
 
 client = TestClient(app)
-auth = Auth(
- secret_key="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
- algorithm="HS256",
- access_token_expire_minutes=30
-)
 
-def test_register_success():
- response = client.post(
- "/register",
- json={"username": "testuser", "password": "testpassword"}
- )
+@pytest.mark.asyncio
+async def test_register_success():
+ response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
+ assert response.status_code == 201
+ assert response.json()['mobile'] == '1234567890'
+
+def test_register_duplicate_mobile():
+ client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
+ response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
+ assert response.status_code == 409
+
+@pytest.mark.asyncio
+async def test_login_success():
+ client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
+ response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
  assert response.status_code == 200
- assert response.json()["message"] == "User created successfully"
-
-def test_register_duplicate():
- client.post(
- "/register",
- json={"username": "testuser", "password": "testpassword"}
- )
- response = client.post(
- "/register",
- json={"username": "testuser", "password": "testpassword"}
- )
- assert response.status_code == 400
- assert response.json()["detail"] == "Username already registered"
-
-def test_login_success():
- client.post(
- "/register",
- json={"username": "testuser", "password": "testpassword"}
- )
- response = client.post(
- "/login",
- data={"grant_type": "password", "username": "testuser", "password": "testpassword"}
- )
- assert response.status_code == 200
- assert "access_token" in response.json()
+ assert 'access_token' in response.json()
 
 def test_login_wrong_password():
- client.post(
- "/register",
- json={"username": "testuser", "password": "testpassword"}
- )
- response = client.post(
- "/login",
- data={"grant_type": "password", "username": "testuser", "password": "wrongpassword"}
- )
+ client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
+ response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'wrongpassword'})
  assert response.status_code == 401
- assert response.json()["detail"] == "Incorrect username or password"
+
+def test_login_unknown_mobile():
+ response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
+ assert response.status_code == 401

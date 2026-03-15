@@ -1,91 +1,77 @@
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from passlib.context import CryptContext
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
-from typing import Optional
-
-app = FastAPI()
-
-# OAuth2 scheme definition
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
-
-# JWT secret key
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# In-memory user storage
-users_db = {}
-
-class User(BaseModel):
-    username: str
-    email: Optional[str] = None
-    full_name: Optional[str] = None
-    disabled: Optional[bool] = False
-
-class UserInDB(User):
-    password: str
+from backend.models import UserRegister, UserLogin, UserOut, TokenResponse, ContactCreate, ContactUpdate, ContactOut
+from backend.auth import hash_password, verify_password, create_access_token, get_current_user
+from typing import List
 
 class Contact(BaseModel):
     name: str
-    phone: str
+    mobile: str
+    owner_id: str
+    id: str
 
-# User registration endpoint
-@app.post("/register")
-async def register(username: str, password: str):
-    if username in users_db:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    hashed_password = pwd_context.hash(password)
-    users_db[username] = UserInDB(username=username, password=hashed_password)
-    return {"message": "User created successfully"}
+class User(BaseModel):
+    mobile: str
+    password: str
+    id: str
 
-# User login endpoint
-@app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = users_db.get(form_data.username)
-    if not user or not pwd_context.verify(form_data.password, user.password):
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = jwt.encode({
-        "sub": user.username,
-        "exp": datetime.utcnow() + access_token_expires
-    }, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": access_token, "token_type": "bearer"}
+app = FastAPI()
 
-# Contact creation endpoint
-@app.post("/contacts")
-async def create_contact(contact: Contact, token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
-        # Add contact to user's contacts
-        if username not in users_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        users_db[username].contacts.append(contact)
-        return {"message": "Contact created successfully"}
+users_db = {}
+contacts_db = {}
 
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+security = HTTPBearer()
 
-# Contact retrieval endpoint
-@app.get("/contacts")
-async def read_contacts(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
-        # Return user's contacts
-        if username not in users_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        return users_db[username].contacts
+@app.post('/auth/register')
+async def register(user: UserRegister):
+    if user.mobile in users_db:
+        raise HTTPException(status_code=409, detail='Mobile number already registered')
+    hashed_password = hash_password(user.password)
+    user_id = str(len(users_db) + 1)
+    users_db[user.mobile] = {'password': hashed_password, 'id': user_id}
+    return UserOut(id=user_id, mobile=user.mobile)
 
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+@app.post('/auth/login')
+async def login(user: UserLogin):
+    if user.mobile not in users_db:
+        raise HTTPException(status_code=401, detail='Invalid mobile number or password')
+    stored_user = users_db[user.mobile]
+    if not verify_password(user.password, stored_user['password']):
+        raise HTTPException(status_code=401, detail='Invalid mobile number or password')
+    access_token = create_access_token(data={'sub': stored_user['id']})
+    return TokenResponse(access_token=access_token, token_type='bearer')
+
+@app.post('/contacts/')
+async def create_contact(contact: ContactCreate, token: HTTPAuthorizationCredentials = Depends(security)):
+    current_user = get_current_user(token.credentials)
+    contact_id = str(len(contacts_db) + 1)
+    contacts_db[contact_id] = {'name': contact.name, 'mobile': contact.mobile, 'owner_id': current_user['sub']}
+    return ContactOut(id=contact_id, name=contact.name, mobile=contact.mobile, owner_id=current_user['sub'])
+
+@app.get('/contacts/')
+async def read_contacts(token: HTTPAuthorizationCredentials = Depends(security)):
+    current_user = get_current_user(token.credentials)
+    contacts = [ContactOut(id=contact_id, name=contact['name'], mobile=contact['mobile'], owner_id=contact['owner_id']) for contact_id, contact in contacts_db.items() if contact['owner_id'] == current_user['sub']]
+    return contacts
+
+@app.put('/contacts/{contact_id}')
+async def update_contact(contact_id: str, contact: ContactUpdate, token: HTTPAuthorizationCredentials = Depends(security)):
+    current_user = get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=404, detail='Contact not found')
+    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
+        raise HTTPException(status_code=403, detail='You do not own this contact')
+    contacts_db[contact_id]['name'] = contact.name if contact.name is not None else contacts_db[contact_id]['name']
+    contacts_db[contact_id]['mobile'] = contact.mobile if contact.mobile is not None else contacts_db[contact_id]['mobile']
+    return ContactOut(id=contact_id, name=contacts_db[contact_id]['name'], mobile=contacts_db[contact_id]['mobile'], owner_id=contacts_db[contact_id]['owner_id'])
+
+@app.delete('/contacts/{contact_id}')
+async def delete_contact(contact_id: str, token: HTTPAuthorizationCredentials = Depends(security)):
+    current_user = get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=404, detail='Contact not found')
+    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
+        raise HTTPException(status_code=403, detail='You do not own this contact')
+    del contacts_db[contact_id]
+    return {'message': 'Contact deleted'}

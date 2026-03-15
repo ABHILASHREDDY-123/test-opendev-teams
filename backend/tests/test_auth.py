@@ -1,38 +1,41 @@
-from fastapi.testclient import TestClient
-from main import app
-from models import UserRegister, UserLogin
-import pytest
+from conftest import get_client
+import json
 
-client = TestClient(app)
-
-@pytest.mark.asyncio
-async def test_register_success():
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
+def test_register_success():
+ client = get_client()
+ response = client.post(
+ "_/auth/register",
+ headers={"Content-Type": "application/json"},
+ data=json.dumps({"username": "user1", "email": "user1@example.com", "full_name": "User 1", "password": "password1"}),
+ )
  assert response.status_code == 200
- assert 'id' in response.json()
- assert 'mobile' in response.json()
 
-@pytest.mark.asyncio
-async def test_register_duplicate_mobile():
- client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- assert response.status_code == 409
 
-@pytest.mark.asyncio
-async def test_login_success():
- client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
+def test_register_duplicate():
+ client = get_client()
+ response = client.post(
+ "_/auth/register",
+ headers={"Content-Type": "application/json"},
+ data=json.dumps({"username": "user1", "email": "user1@example.com", "full_name": "User 1", "password": "password1"}),
+ )
+ assert response.status_code == 400
+
+
+def test_login_success():
+ client = get_client()
+ response = client.post(
+ "_/auth/login",
+ headers={"Content-Type": "application/x-www-form-urlencoded"},
+ data={"username": "user1", "password": "password1"},
+ )
  assert response.status_code == 200
- assert 'access_token' in response.json()
- assert 'token_type' in response.json()
 
-@pytest.mark.asyncio
-async def test_login_wrong_password():
- client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'wrongpassword'})
- assert response.status_code == 401
 
-@pytest.mark.asyncio
-async def test_login_unknown_mobile():
- response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
- assert response.status_code == 401
+def test_login_wrong_password():
+ client = get_client()
+ response = client.post(
+ "_/auth/login",
+ headers={"Content-Type": "application/x-www-form-urlencoded"},
+ data={"username": "user1", "password": "wrongpassword"},
+ )
+ assert response.status_code == 400

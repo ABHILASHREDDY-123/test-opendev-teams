@@ -1,62 +1,87 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from jwt import encode, decode
-from datetime import datetime, timedelta
-import bcrypt
+from auth import create_access_token, verify_password, get_password_hash
+from contacts import Contact
 
 app = FastAPI()
 
+# OAuth2 schema
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 class User(BaseModel):
     username: str
+    email: str
+    full_name: str
     password: str
 
-class Contact(BaseModel):
-    name: str
-    phone: str
+# In-memory user database (replace with a real database)
+users_db = {}
 
-# In-memory storage for users and contacts
-users = {}
-contacts = {}
+# In-memory contact database (replace with a real database)
+contacts_db = {}
 
-# Register a new user
-@app.post("/register")
-def register(user: User):
-    if user.username in users:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    users[user.username] = {
-        "password": bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
+# Create access token
+def create_token(data: dict):
+    return create_access_token(data)
+
+# Get current user
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    # Replace with a real user retrieval mechanism
+    for user_id, user in users_db.items():
+        if user["token"] == token:
+            return user
+    raise HTTPException(status_code=401, detail="Invalid token")
+
+# Register user
+@app.post("/auth/register")
+async def register(user: User):
+    # Check if user already exists
+    if user.username in users_db:
+        raise HTTPException(status_code=400, detail="User already exists")
+    # Hash password
+    user.password = get_password_hash(user.password)
+    # Store user in database
+    users_db[user.username] = {
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "password": user.password,
+        "token": create_token({"sub": user.username})
     }
     return {"message": "User created successfully"}
 
-# Login a user
-@app.post("/login")
-def login(user: User):
-    if user.username not in users:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if not bcrypt.checkpw(user.password.encode(), users[user.username]["password"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    payload = {
-        "username": user.username,
-        "exp": datetime.utcnow() + timedelta(minutes=30)
-    }
-    token = encode(payload, "secret_key", algorithm="HS256")
-    return {"token": token}
+# Login user
+@app.post("/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Replace with a real user retrieval mechanism
+    user = users_db.get(form_data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+    # Verify password
+    if not verify_password(form_data.password, user["password"]):
+        raise HTTPException(status_code=400, detail="Invalid password")
+    # Return access token
+    return {"access_token": user["token"], "token_type": "bearer"}
 
-# Create a new contact
+# Create contact
 @app.post("/contacts")
-def create_contact(contact: Contact, token: str):
-    try:
-        payload = decode(token, "secret_key", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    contacts[payload["username"]] = contacts.get(payload["username"], []) + [contact]
+async def create_contact(contact: Contact, token: str = Depends(oauth2_scheme)):
+    # Get current user
+    user = get_current_user(token)
+    # Store contact in database
+    contacts_db[len(contacts_db)] = {
+        "name": contact.name,
+        "mobile": contact.mobile,
+        "owner": user["username"]
+    }
     return {"message": "Contact created successfully"}
 
-# Get all contacts for a user
+# Get contacts
 @app.get("/contacts")
-def get_contacts(token: str):
-    try:
-        payload = decode(token, "secret_key", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return contacts.get(payload["username"], [])
+async def get_contacts(token: str = Depends(oauth2_scheme)):
+    # Get current user
+    user = get_current_user(token)
+    # Filter contacts by owner
+    contacts = [contact for contact in contacts_db.values() if contact["owner"] == user["username"]]
+    return contacts

@@ -1,11 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from jwt import encode, decode
-from passlib.context import CryptContext
-import pytest
+from datetime import datetime, timedelta
+import bcrypt
 
 app = FastAPI()
-pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
 class User(BaseModel):
     username: str
@@ -15,61 +14,49 @@ class Contact(BaseModel):
     name: str
     phone: str
 
-# in-memory data store for demonstration purposes
+# In-memory storage for users and contacts
 users = {}
 contacts = {}
 
-@app.post('/register')
+# Register a new user
+@app.post("/register")
 def register(user: User):
     if user.username in users:
-        raise HTTPException(status_code=400, detail='Username already exists')
-    users[user.username] = pwd_context.hash(user.password)
-    return {'message': 'User created successfully'}
+        raise HTTPException(status_code=400, detail="Username already exists")
+    users[user.username] = {
+        "password": bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
+    }
+    return {"message": "User created successfully"}
 
-@app.post('/login')
+# Login a user
+@app.post("/login")
 def login(user: User):
     if user.username not in users:
-        raise HTTPException(status_code=401, detail='Invalid username or password')
-    if not pwd_context.verify(user.password, users[user.username]):
-        raise HTTPException(status_code=401, detail='Invalid username or password')
-    token = encode({'username': user.username}, 'secret_key', algorithm='HS256')
-    return {'token': token}
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    if not bcrypt.checkpw(user.password.encode(), users[user.username]["password"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    payload = {
+        "username": user.username,
+        "exp": datetime.utcnow() + timedelta(minutes=30)
+    }
+    token = encode(payload, "secret_key", algorithm="HS256")
+    return {"token": token}
 
-@app.post('/contacts')
+# Create a new contact
+@app.post("/contacts")
 def create_contact(contact: Contact, token: str):
     try:
-        payload = decode(token, 'secret_key', algorithms=['HS256'])
+        payload = decode(token, "secret_key", algorithms=["HS256"])
     except:
-        raise HTTPException(status_code=401, detail='Invalid token')
-    contacts[contact.name] = contact.phone
-    return {'message': 'Contact created successfully'}
+        raise HTTPException(status_code=401, detail="Invalid token")
+    contacts[payload["username"]] = contacts.get(payload["username"], []) + [contact]
+    return {"message": "Contact created successfully"}
 
-@app.get('/contacts')
+# Get all contacts for a user
+@app.get("/contacts")
 def get_contacts(token: str):
     try:
-        payload = decode(token, 'secret_key', algorithms=['HS256'])
+        payload = decode(token, "secret_key", algorithms=["HS256"])
     except:
-        raise HTTPException(status_code=401, detail='Invalid token')
-    return {'contacts': contacts}
-
-@app.put('/contacts/{name}')
-def update_contact(name: str, contact: Contact, token: str):
-    try:
-        payload = decode(token, 'secret_key', algorithms=['HS256'])
-    except:
-        raise HTTPException(status_code=401, detail='Invalid token')
-    if name not in contacts:
-        raise HTTPException(status_code=404, detail='Contact not found')
-    contacts[name] = contact.phone
-    return {'message': 'Contact updated successfully'}
-
-@app.delete('/contacts/{name}')
-def delete_contact(name: str, token: str):
-    try:
-        payload = decode(token, 'secret_key', algorithms=['HS256'])
-    except:
-        raise HTTPException(status_code=401, detail='Invalid token')
-    if name not in contacts:
-        raise HTTPException(status_code=404, detail='Contact not found')
-    del contacts[name]
-    return {'message': 'Contact deleted successfully'}
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return contacts.get(payload["username"], [])

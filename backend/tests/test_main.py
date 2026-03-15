@@ -1,50 +1,49 @@
 from fastapi.testclient import TestClient
-from backend.main import app
+from main import app
 import pytest
+from pydantic import BaseModel
+from jwt import encode, decode
+
+class User(BaseModel):
+    username: str
+    password: str
+
+class Contact(BaseModel):
+    name: str
+    phone: str
 
 client = TestClient(app)
 
 def test_register():
- response = client.post('/register', json={'username': 'test', 'password': 'test'})
- assert response.status_code == 200
- assert response.json()['message'] == 'User created successfully'
+    user = User(username='test', password='test')
+    response = client.post('/register', json=user.dict())
+    assert response.status_code == 200
+    assert response.json()['message'] == 'User created successfully'
 
 def test_login():
- client.post('/register', json={'username': 'test', 'password': 'test'})
- response = client.post('/login', json={'username': 'test', 'password': 'test'})
- assert response.status_code == 200
- assert 'token' in response.json()
+    user = User(username='test', password='test')
+    client.post('/register', json=user.dict())
+    response = client.post('/login', json=user.dict())
+    assert response.status_code == 200
+    assert 'token' in response.json()
 
 def test_create_contact():
- client.post('/register', json={'username': 'test', 'password': 'test'})
- login_response = client.post('/login', json={'username': 'test', 'password': 'test'})
- token = login_response.json()['token']
- response = client.post('/contacts', json={'name': 'test', 'phone': '123'}, headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
- assert response.json()['message'] == 'Contact created successfully'
+    user = User(username='test', password='test')
+    client.post('/register', json=user.dict())
+    login_response = client.post('/login', json=user.dict())
+    token = login_response.json()['token']
+    contact = Contact(name='test', phone='1234567890')
+    response = client.post('/contacts', json=contact.dict(), headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 200
+    assert response.json()['message'] == 'Contact created successfully'
 
 def test_get_contacts():
- client.post('/register', json={'username': 'test', 'password': 'test'})
- login_response = client.post('/login', json={'username': 'test', 'password': 'test'})
- token = login_response.json()['token']
- response = client.get('/contacts', headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
- assert 'contacts' in response.json()
-
-def test_update_contact():
- client.post('/register', json={'username': 'test', 'password': 'test'})
- login_response = client.post('/login', json={'username': 'test', 'password': 'test'})
- token = login_response.json()['token']
- client.post('/contacts', json={'name': 'test', 'phone': '123'}, headers={'Authorization': f'Bearer {token}'})
- response = client.put('/contacts/test', json={'name': 'test', 'phone': '456'}, headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
- assert response.json()['message'] == 'Contact updated successfully'
-
-def test_delete_contact():
- client.post('/register', json={'username': 'test', 'password': 'test'})
- login_response = client.post('/login', json={'username': 'test', 'password': 'test'})
- token = login_response.json()['token']
- client.post('/contacts', json={'name': 'test', 'phone': '123'}, headers={'Authorization': f'Bearer {token}'})
- response = client.delete('/contacts/test', headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
- assert response.json()['message'] == 'Contact deleted successfully'
+    user = User(username='test', password='test')
+    client.post('/register', json=user.dict())
+    login_response = client.post('/login', json=user.dict())
+    token = login_response.json()['token']
+    contact = Contact(name='test', phone='1234567890')
+    client.post('/contacts', json=contact.dict(), headers={'Authorization': f'Bearer {token}'})
+    response = client.get('/contacts', headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 200
+    assert len(response.json()) == 1

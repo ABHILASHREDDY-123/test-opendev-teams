@@ -1,23 +1,25 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import axios from 'axios';
 
+interface LoginForm {
+  username: string;
+  password: string;
+}
+
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
+  const { register, handleSubmit, errors } = useForm<LoginForm>();
+  const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const onSubmit = async (data: LoginForm) => {
     try {
-      const response = await axios.post('/api/auth/login', {
-        username,
-        password,
-      });
+      setIsLoading(true);
+      const response = await axios.post('/api/login', data);
       // Handle successful login
+      console.log(response);
     } catch (error) {
-      setError(error.response.data);
+      setLoginError('Invalid username or password');
     } finally {
       setIsLoading(false);
     }
@@ -26,26 +28,15 @@ const LoginPage = () => {
   return (
     <div>
       <h1>Login Page</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username:
-          <input
-            type="text"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-        </label>
-        <label>
-          Password:
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
-        <button type="submit">Login</button>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        {isLoading && <p>Loading...</p>}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <label>Username:</label>
+        <input {...register('username')} />
+        {errors.username && <div>{errors.username.message}</div>}
+        <label>Password:</label>
+        <input type='password' {...register('password')} />
+        {errors.password && <div>{errors.password.message}</div>}
+        <button type='submit' disabled={isLoading}>Login</button>
+        {loginError && <div style={{ color: 'red' }}>{loginError}</div>}
       </form>
     </div>
   );

@@ -1,30 +1,46 @@
 import React, { useState } from 'react';
-import './LoginPage.css';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import axios from 'axios';
+
+const schema = yup.object().shape({
+  email: yup.string().email().required(),
+  password: yup.string().min(8).required(),
+});
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const { register, handleSubmit, errors } = useForm({
+    resolver: yupResolver(schema),
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    // TODO: Call API to authenticate user
+  const onSubmit = async (data) => {
+    try {
+      setIsLoading(true);
+      const response = await axios.post('/api/login', data);
+      // Handle login success
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="login-page">
+    <div>
       <h1>Login Page</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username:
-          <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <label>
-          Password:
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <button type="submit">Login</button>
-        {error && <div className="error">{error}</div>}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <label>Email:</label>
+        <input {...register('email')} />
+        {errors.email && <div>{errors.email.message}</div>}
+        <label>Password:</label>
+        <input {...register('password')} />
+        {errors.password && <div>{errors.password.message}</div>}
+        <button type='submit'>Login</button>
+        {isLoading && <div>Loading...</div>}
+        {error && <div>{error}</div>}
       </form>
     </div>
   );

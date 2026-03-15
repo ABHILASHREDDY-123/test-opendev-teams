@@ -1,43 +1,39 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import './LoginPage.css';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setLoading(true);
-    try {
-      const response = await axios.post('/api/auth/login', { email, password });
-      // Handle successful login
-      console.log(response);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
+    setIsLoading(true);
+    // Call API to login
+    setTimeout(() => {
+      setIsLoading(false);
+      if (username === 'test' && password === 'test') {
+        // Login success
+      } else {
+        setError('Invalid username or password');
+      }
+    }, 1000);
   };
 
   return (
-    <div>
-      <h1>Login Page</h1>
+    <div className="login-page">
       <form onSubmit={handleSubmit}>
         <label>
-          Email:
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          Username:
+          <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
         </label>
-        <br />
         <label>
           Password:
           <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
         </label>
-        <br />
-        <button type="submit">Login</button>
-        {loading && <p>Loading...</p>}
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit">{isLoading ? 'Loading...' : 'Login'}</button>
+        {error && <div className="error">{error}</div>}
       </form>
     </div>
   );

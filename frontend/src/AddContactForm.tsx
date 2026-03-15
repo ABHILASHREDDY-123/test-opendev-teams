@@ -9,6 +9,7 @@ const AddContactForm = () => {
  const handleSubmit = (event) => {
  event.preventDefault();
  // Call API to add contact
+ console.log(`Adding contact with name: ${name} and mobile: ${mobile}`);
  history.push('/contacts');
  };
 

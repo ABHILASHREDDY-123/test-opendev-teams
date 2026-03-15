@@ -9,6 +9,7 @@ const LoginPage = () => {
   const handleSubmit = (event) => {
     event.preventDefault();
     // Call API to login
+    console.log(`Login with mobile: ${mobile} and password: ${password}`);
     history.push('/contacts');
   };
 

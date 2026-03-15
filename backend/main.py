@@ -1,86 +1,58 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from jwt import encode, decode
-from datetime import datetime, timedelta
-import bcrypt
+from typing import List
+
 app = FastAPI()
 
 class User(BaseModel):
+    id: int
     username: str
-    password: str
+    email: str
 
 class Contact(BaseModel):
+    id: int
     name: str
     phone: str
+    owner_id: int
 
+# In-memory data store for demonstration purposes
 users = {}
 contacts = {}
 
-@app.post("/register")
-def register(user: User):
-    if user.username in users:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    users[user.username] = {
-        "password": bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
-    }
-    return {"message": "User created successfully"}
+@app.post("/users/", response_model=User)
+async def create_user(user: User):
+    if user.id in users:
+        raise HTTPException(status_code=400, detail="User already exists")
+    users[user.id] = user
+    return user
 
-@app.post("/login")
-def login(user: User):
-    if user.username not in users:
-        raise HTTPException(status_code=400, detail="Username does not exist")
-    if not bcrypt.checkpw(user.password.encode(), users[user.username]["password"]):
-        raise HTTPException(status_code=400, detail="Incorrect password")
-    payload = {
-        "username": user.username,
-        "exp": datetime.utcnow() + timedelta(minutes=30)
-    }
-    token = encode(payload, "secretkey", algorithm="HS256")
-    return {"token": token}
+@app.post("/contacts/", response_model=Contact)
+async def create_contact(contact: Contact):
+    if contact.id in contacts:
+        raise HTTPException(status_code=400, detail="Contact already exists")
+    contacts[contact.id] = contact
+    return contact
 
-@app.post("/contacts")
-def create_contact(contact: Contact, token: str):
-    try:
-        payload = decode(token, "secretkey", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload["username"] not in users:
-        raise HTTPException(status_code=401, detail="User does not exist")
-    contacts[contact.name] = contact
-    return {"message": "Contact created successfully"}
-
-@app.get("/contacts")
-def get_contacts(token: str):
-    try:
-        payload = decode(token, "secretkey", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload["username"] not in users:
-        raise HTTPException(status_code=401, detail="User does not exist")
+@app.get("/contacts/")
+async def read_contacts():
     return list(contacts.values())
 
-@app.put("/contacts/{name}")
-def update_contact(name: str, contact: Contact, token: str):
-    try:
-        payload = decode(token, "secretkey", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload["username"] not in users:
-        raise HTTPException(status_code=401, detail="User does not exist")
-    if name not in contacts:
-        raise HTTPException(status_code=404, detail="Contact does not exist")
-    contacts[name] = contact
-    return {"message": "Contact updated successfully"}
+@app.get("/contacts/{contact_id}")
+async def read_contact(contact_id: int):
+    if contact_id not in contacts:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return contacts[contact_id]
 
-@app.delete("/contacts/{name}")
-def delete_contact(name: str, token: str):
-    try:
-        payload = decode(token, "secretkey", algorithms=["HS256"])
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    if payload["username"] not in users:
-        raise HTTPException(status_code=401, detail="User does not exist")
-    if name not in contacts:
-        raise HTTPException(status_code=404, detail="Contact does not exist")
-    del contacts[name]
-    return {"message": "Contact deleted successfully"}
+@app.put("/contacts/{contact_id}")
+async def update_contact(contact_id: int, contact: Contact):
+    if contact_id not in contacts:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    contacts[contact_id] = contact
+    return contact
+
+@app.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: int):
+    if contact_id not in contacts:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    del contacts[contact_id]
+    return {"message": "Contact deleted"}

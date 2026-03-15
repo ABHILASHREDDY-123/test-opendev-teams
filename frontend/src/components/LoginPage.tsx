@@ -1,46 +1,39 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import axios from 'axios';
-
-const schema = yup.object().shape({
-  email: yup.string().email().required(),
-  password: yup.string().required(),
-});
+import './LoginPage.css';
 
 const LoginPage = () => {
-  const { register, handleSubmit, errors } = useForm({
-    resolver: yupResolver(schema),
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const onSubmit = async (data) => {
-    try {
-      setIsLoading(true);
-      const response = await axios.post('/api/login', data);
-      // Handle successful login
-    } catch (error) {
-      setError(error.message);
-    } finally {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    // Call API to login
+    setTimeout(() => {
       setIsLoading(false);
-    }
+      if (username === 'test' && password === 'test') {
+        // Login success
+      } else {
+        setError('Invalid username or password');
+      }
+    }, 1000);
   };
 
   return (
-    <div>
-      <h1>Login Page</h1>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <label>Email:</label>
-        <input {...register('email')} />
-        {errors.email && <div>{errors.email.message}</div>}
-        <label>Password:</label>
-        <input {...register('password')} />
-        {errors.password && <div>{errors.password.message}</div>}
-        <button type='submit'>Login</button>
-        {isLoading && <div>Loading...</div>}
-        {error && <div>{error}</div>}
+    <div className="login-page">
+      <form onSubmit={handleSubmit}>
+        <label>
+          Username:
+          <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <label>
+          Password:
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        <button type="submit">{isLoading ? 'Loading...' : 'Login'}</button>
+        {error && <div style={{ color: 'red' }}>{error}</div>}
       </form>
     </div>
   );

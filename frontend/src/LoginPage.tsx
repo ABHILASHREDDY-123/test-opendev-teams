@@ -1,23 +1,19 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const LoginPage = () => {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setLoading(true);
     try {
       const response = await axios.post('/api/auth/login', { mobile, password });
-      // Handle successful login
-      console.log(response);
+      navigate('/contacts');
     } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      console.error(error);
     }
   };
 
@@ -25,14 +21,13 @@ const LoginPage = () => {
     <form onSubmit={handleSubmit}>
       <label>
         Mobile:
-        <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+        <input type='text' value={mobile} onChange={(event) => setMobile(event.target.value)} />
       </label>
       <label>
         Password:
-        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        <input type='password' value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
-      <button type="submit">{loading ? 'Loading...' : 'Login'}</button>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
+      <button type='submit'>Login</button>
     </form>
   );
 };

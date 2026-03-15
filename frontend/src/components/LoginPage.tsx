@@ -1,32 +1,42 @@
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import axios from 'axios';
+
+interface LoginForm {
+  email: string;
+  password: string;
+}
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const history = useHistory();
+  const { register, handleSubmit, errors } = useForm<LoginForm>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    // Call API to login
-    console.log('Login submitted');
+  const onSubmit = async (data: LoginForm) => {
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/auth/login', data);
+      // Handle login success
+      console.log(response);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
       <h1>Login Page</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Email:
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label>
-          Password:
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <button type="submit">Login</button>
-        {error && <div style={{ color: 'red' }}>{error}</div>}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <label>Email:</label>
+        <input {...register('email')} />
+        {errors.email && <div>{errors.email.message}</div>}
+        <label>Password:</label>
+        <input {...register('password')} />
+        {errors.password && <div>{errors.password.message}</div>}
+        <button type="submit">{loading ? 'Loading...' : 'Login'}</button>
+        {error && <div>{error}</div>}
       </form>
     </div>
   );

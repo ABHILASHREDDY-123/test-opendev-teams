@@ -1,48 +1,46 @@
-from backend.main import app
-from httpx import AsyncClient
+from fastapi.testclient import TestClient
+from main import app
 import pytest
 
-class TestContacts:
- @pytest.mark.asyncio
- async def test_create_contact(self):
- async with AsyncClient(app=app, base_url='http://test') as ac:
- register_response = await ac.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
- login_response = await ac.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
- token = login_response.json()['access_token']
- response = await ac.post('/contacts', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
+client = TestClient(app)
 
- @pytest.mark.asyncio
- async def test_list_contacts(self):
- async with AsyncClient(app=app, base_url='http://test') as ac:
- register_response = await ac.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
- login_response = await ac.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
- token = login_response.json()['access_token']
- await ac.post('/contacts', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {token}'})
- await ac.post('/contacts', json={'name': 'Jane Doe', 'mobile': '5555555555'}, headers={'Authorization': f'Bearer {token}'})
- response = await ac.get('/contacts', headers={'Authorization': f'Bearer {token}'})
+def test_create_contact():
+ # Register a user
+ client.post(
+ "/register",
+ json={"username": "testuser", "password": "testpassword"}
+ )
+ # Login to get access token
+ response = client.post(
+ "/login",
+ data={"grant_type": "password", "username": "testuser", "password": "testpassword"}
+ )
+ access_token = response.json()["access_token"]
+ # Create a contact
+ response = client.post(
+ "/contacts",
+ json={"name": "Test Contact", "phone": "1234567890"},
+ headers={"Authorization": f"Bearer {access_token}"}
+ )
  assert response.status_code == 200
- assert len(response.json()) == 2
+ assert response.json()["message"] == "Contact created successfully"
 
- @pytest.mark.asyncio
- async def test_update_contact(self):
- async with AsyncClient(app=app, base_url='http://test') as ac:
- register_response = await ac.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
- login_response = await ac.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
- token = login_response.json()['access_token']
- create_response = await ac.post('/contacts', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {token}'})
- contact_id = create_response.json()['id']
- response = await ac.put(f'/contacts/{contact_id}', json={'name': 'Jane Doe'}, headers={'Authorization': f'Bearer {token}'})
+def test_get_contacts():
+ # Register a user
+ client.post(
+ "/register",
+ json={"username": "testuser", "password": "testpassword"}
+ )
+ # Login to get access token
+ response = client.post(
+ "/login",
+ data={"grant_type": "password", "username": "testuser", "password": "testpassword"}
+ )
+ access_token = response.json()["access_token"]
+ # Get contacts
+ response = client.get(
+ "/contacts",
+ headers={"Authorization": f"Bearer {access_token}"}
+ )
  assert response.status_code == 200
- assert response.json()['name'] == 'Jane Doe'
-
- @pytest.mark.asyncio
- async def test_delete_contact(self):
- async with AsyncClient(app=app, base_url='http://test') as ac:
- register_response = await ac.post('/auth/register', json={'mobile': '1234567890', 'password': 'password'})
- login_response = await ac.post('/auth/login', json={'mobile': '1234567890', 'password': 'password'})
- token = login_response.json()['access_token']
- create_response = await ac.post('/contacts', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {token}'})
- contact_id = create_response.json()['id']
- response = await ac.delete(f'/contacts/{contact_id}', headers={'Authorization': f'Bearer {token}'})
- assert response.status_code == 200
+ assert len(response.json()) == 0

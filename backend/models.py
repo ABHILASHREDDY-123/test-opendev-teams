@@ -1,25 +1,34 @@
 from pydantic import BaseModel
-from typing import List
+from typing import Optional
 
-class Contact(BaseModel):
-    id: int
-    name: str
-    mobile: str
-    owner_id: int
+class UserRegister(BaseModel):
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    username: str
+    class Config:
+        orm_mode = True
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
 
 class ContactCreate(BaseModel):
     name: str
-    mobile: str
+    phone: str
 
-class User(BaseModel):
+class ContactUpdate(BaseModel):
+    name: Optional[str]
+    phone: Optional[str]
+
+class ContactOut(BaseModel):
     id: int
-    mobile: str
-    password: str
-
-class UserCreate(BaseModel):
-    mobile: str
-    password: str
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+    name: str
+    phone: str
+    class Config:
+        orm_mode = True

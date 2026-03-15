@@ -1,52 +1,36 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import axios from 'axios';
+import './LoginForm.css';
 
-const schema = yup.object().shape({
-  email: yup.string().email().required(),
-  password: yup.string().required(),
-});
+interface LoginFormProps {
+  onSubmit: (username: string, password: string) => void;
+}
 
-const LoginForm = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
-    resolver: yupResolver(schema),
-  });
+const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const onSubmit = async (data) => {
-    try {
-      setLoading(true);
-      const response = await axios.post('/api/login', data);
-      // Handle login success
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!username || !password) {
+      setError('Please fill in both username and password');
+      return;
     }
+    onSubmit(username, password);
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit}>
       <label>
-        Email:
-        <input {...register('email')} />
-        {errors.email && <div>{errors.email.message}</div>}
+        Username:
+        <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
       </label>
       <label>
         Password:
-        <input {...register('password')} />
-        {errors.password && <div>{errors.password.message}</div>}
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
       </label>
-      <button type="submit" disabled={loading}>Login</button>
-      {loading && <div>Loading...</div>}
-      {error && <div>{error}</div>}
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      <button type="submit">Login</button>
     </form>
   );
 };

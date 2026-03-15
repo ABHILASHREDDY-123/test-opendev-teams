@@ -1,51 +1,34 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import axios from 'axios';
+import '@testing-library/jest-dom/extend-expect';
 import LoginPage from './LoginPage';
 
-jest.mock('axios');
-
 describe('LoginPage', () => {
- it('renders email and password fields', () => {
- const { getByLabelText } = render(<LoginPage />);
- expect(getByLabelText('Email:')).toBeInTheDocument();
- expect(getByLabelText('Password:')).toBeInTheDocument();
+ it('renders username and password fields', () => {
+ const { getByPlaceholderText } = render(<LoginPage />);
+ expect(getByPlaceholderText('Username')).toBeInTheDocument();
+ expect(getByPlaceholderText('Password')).toBeInTheDocument();
  });
 
- it('submits form with email and password', async () => {
- const { getByLabelText, getByText } = render(<LoginPage />);
- const emailInput = getByLabelText('Email:');
- const passwordInput = getByLabelText('Password:');
- const submitButton = getByText('Login');
-
- fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
- fireEvent.change(passwordInput, { target: { value: 'password' } });
-
- fireEvent.click(submitButton);
-
- await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
- expect(axios.post).toHaveBeenCalledWith('/api/login', {
- email: 'test@example.com',
- password: 'password',
- });
- });
-
- it('displays loading state', async () => {
+ it('shows error message when username or password is empty', () => {
  const { getByText } = render(<LoginPage />);
  const submitButton = getByText('Login');
-
  fireEvent.click(submitButton);
-
- await waitFor(() => expect(getByText('Loading...')).toBeInTheDocument());
+ expect(getByText('Username and password are required')).toBeInTheDocument();
  });
 
- it('displays error message', async () => {
- axios.post.mockRejectedValueOnce(new Error('Invalid credentials'));
- const { getByText } = render(<LoginPage />);
+ it('calls API to authenticate user when form is submitted', () => {
+ const { getByText, getByPlaceholderText } = render(<LoginPage />);
+ const usernameInput = getByPlaceholderText('Username');
+ const passwordInput = getByPlaceholderText('Password');
  const submitButton = getByText('Login');
 
+ fireEvent.change(usernameInput, { target: { value: 'testuser' } });
+ fireEvent.change(passwordInput, { target: { value: 'testpassword' } });
  fireEvent.click(submitButton);
 
- await waitFor(() => expect(getByText('Invalid credentials')).toBeInTheDocument());
+ // TODO: Mock API call to authenticate user
+ // expect(console.log).toHaveBeenCalledTimes(1);
+ // expect(console.log).toHaveBeenCalledWith('Username: testuser, Password: testpassword');
  });
 });

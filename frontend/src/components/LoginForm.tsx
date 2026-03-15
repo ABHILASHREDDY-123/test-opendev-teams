@@ -5,8 +5,8 @@ import * as yup from 'yup';
 import axios from 'axios';
 
 const schema = yup.object().shape({
-  email: yup.string().email().required(),
-  password: yup.string().required(),
+  email: yup.string().email('Invalid email').required('Email is required'),
+  password: yup.string().min(8, 'Password must be at least 8 characters').required('Password is required'),
 });
 
 const LoginForm = () => {
@@ -20,7 +20,7 @@ const LoginForm = () => {
     try {
       setIsLoading(true);
       const response = await axios.post('/api/login', data);
-      // Handle successful login
+      // Handle login success
       console.log(response);
     } catch (error) {
       setError(error.message);
@@ -31,17 +31,15 @@ const LoginForm = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <label>
-        Email:
-        <input type="email" {...register('email')} />
-        {errors.email && <div>{errors.email.message}</div>}
-      </label>
-      <label>
-        Password:
-        <input type="password" {...register('password')} />
-        {errors.password && <div>{errors.password.message}</div>}
-      </label>
-      <button type="submit" disabled={isLoading}>Login</button>
+      <label>Email:</label>
+      <input type='email' {...register('email')} />
+      {errors.email && <div>{errors.email.message}</div>}
+
+      <label>Password:</label>
+      <input type='password' {...register('password')} />
+      {errors.password && <div>{errors.password.message}</div>}
+
+      <button type='submit' disabled={isLoading}>Login</button>
       {error && <div style={{ color: 'red' }}>{error}</div>}
     </form>
   );

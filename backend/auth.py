@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from python_jose import jwt
@@ -16,12 +15,25 @@ class Token(BaseModel):
 
 pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
+users = {}
+
+token_secret_key = 'secret_key'
+
+token_expires_in = 3600
+
 @app.post('/auth/register')
 def register(user: User):
-    # Implement user registration logic here
-    pass
+    if user.email in users:
+        raise HTTPException(status_code=400, detail='Email already registered')
+    hashed_password = pwd_context.hash(user.password)
+    users[user.email] = hashed_password
+    return {'message': 'User created successfully'}
 
 @app.post('/auth/login')
 def login(user: User):
-    # Implement user login logic here
-    pass
+    if user.email not in users:
+        raise HTTPException(status_code=401, detail='Invalid email or password')
+    if not pwd_context.verify(user.password, users[user.email]):
+        raise HTTPException(status_code=401, detail='Invalid email or password')
+    access_token = jwt.encode({'sub': user.email}, token_secret_key, algorithm='HS256')
+    return {'access_token': access_token, 'token_type': 'bearer'}

@@ -1,13 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from passlib.context import CryptContext
-from python_jose import jwt
+from datetime import datetime, timedelta
+from jose import jwt
 
-router = APIRouter()
-pwd_context = CryptContext(schemes "["bcrypt"]")
-secret_key = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-access_token_expires_minutes = 30
+app = FastAPI()
 
 class User(BaseModel):
     email: str
@@ -17,12 +15,28 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-@router.post("/register")
-async def register(user: User):
-    # Implement user registration logic
-    pass
+pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
-@router.post("/login")
-async def login(user: User):
-    # Implement user login logic
-    pass
+SECRET_KEY = 'secret_key'
+ALGORITHM = 'HS256'
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+users = {}
+
+@app.post('/auth/register')
+def register(user: User):
+    if user.email in users:
+        raise HTTPException(status_code=400, detail='Email already registered')
+    users[user.email] = user
+    return {'message': 'User created successfully'}
+
+@app.post('/auth/login')
+def login(email: str, password: str):
+    if email not in users:
+        raise HTTPException(status_code=401, detail='Invalid email or password')
+    user = users[email]
+    if not pwd_context.verify(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail='Invalid email or password')
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = jwt.encode({'sub': email, 'exp': datetime.utcnow() + access_token_expires}, SECRET_KEY, algorithm=ALGORITHM)
+    return {'access_token': access_token, 'token_type': 'bearer'}

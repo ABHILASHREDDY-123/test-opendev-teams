@@ -1,27 +1,32 @@
+// Implement the LoginPage component with proper testing and validation
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import axios from 'axios';
 
-interface LoginForm {
-  email: string;
-  password: string;
-}
+const schema = yup.object().shape({
+  email: yup.string().email('Invalid email').required('Email is required'),
+  password: yup.string().min(8, 'Password must be at least 8 characters').required('Password is required'),
+});
 
 const LoginPage = () => {
-  const { register, handleSubmit, errors } = useForm<LoginForm>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { register, handleSubmit, errors } = useForm({
+    resolver: yupResolver(schema),
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
-  const onSubmit = async (data: LoginForm) => {
-    setLoading(true);
+  const onSubmit = async (data) => {
     try {
-      const response = await axios.post('/api/auth/login', data);
-      // Handle login success
-      console.log(response);
-    } catch (error) {
-      setError(error.message);
+      setIsLoading(true);
+      const response = await axios.post('/api/login', data);
+      setSuccess(response.data);
+    } catch (err) {
+      setError(err.response.data);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -30,13 +35,15 @@ const LoginPage = () => {
       <h1>Login Page</h1>
       <form onSubmit={handleSubmit(onSubmit)}>
         <label>Email:</label>
-        <input {...register('email')} />
+        <input type='email' {...register('email')} />
         {errors.email && <div>{errors.email.message}</div>}
         <label>Password:</label>
-        <input {...register('password')} />
+        <input type='password' {...register('password')} />
         {errors.password && <div>{errors.password.message}</div>}
-        <button type="submit">{loading ? 'Loading...' : 'Login'}</button>
-        {error && <div>{error}</div>}
+        <button type='submit'>Login</button>
+        {isLoading && <div>Loading...</div>}
+        {error && <div style={{ color: 'red' }}>{error.message}</div>}
+        {success && <div style={{ color: 'green' }}>{success.message}</div>}
       </form>
     </div>
   );

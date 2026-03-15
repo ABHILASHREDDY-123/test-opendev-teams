@@ -1,39 +1,46 @@
 import React, { useState } from 'react';
-import './LoginPage.css';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import axios from 'axios';
+
+const schema = yup.object().shape({
+  email: yup.string().email().required(),
+  password: yup.string().required(),
+});
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
+  const { register, handleSubmit, errors } = useForm({
+    resolver: yupResolver(schema),
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
-    // Call API to login
-    setTimeout(() => {
+  const onSubmit = async (data) => {
+    try {
+      setIsLoading(true);
+      const response = await axios.post('/api/auth/login', data);
+      // Handle login success
+    } catch (error) {
+      setError(error.message);
+    } finally {
       setIsLoading(false);
-      if (username === 'test' && password === 'test') {
-        // Login success
-      } else {
-        setError('Invalid username or password');
-      }
-    }, 1000);
+    }
   };
 
   return (
-    <div className="login-page">
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username:
-          <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <label>
-          Password:
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <button type="submit">{isLoading ? 'Loading...' : 'Login'}</button>
-        {error && <div className="error">{error}</div>}
+    <div>
+      <h1>Login Page</h1>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <label>Email:</label>
+        <input {...register('email')} />
+        {errors.email && <div>{errors.email.message}</div>}
+        <label>Password:</label>
+        <input {...register('password')} />
+        {errors.password && <div>{errors.password.message}</div>}
+        <button type='submit'>Login</button>
+        {isLoading && <div>Loading...</div>}
+        {error && <div>{error}</div>}
       </form>
     </div>
   );

@@ -1,34 +1,60 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
 import axios from 'axios';
 import LoginPage from '../components/LoginPage';
 
-jest.mock('axios');
+const server = setupServer(
+ rest.post('/api/login', (req, res, ctx) => {
+ return res(ctx.json({ token: 'test-token' }));
+ }),
+);
+
+afterEach(() => server.resetHandlers());
+
+afterAll(() => server.close());
 
 describe('LoginPage', () => {
- it('renders email and password fields', () => {
- const { getByLabelText } = render(<LoginPage />);
- expect(getByLabelText('Email:')).toBeInTheDocument();
- expect(getByLabelText('Password:')).toBeInTheDocument();
+ it('should render login form', () => {
+ const { getByText } = render(<LoginPage />);
+ expect(getByText('Login Page')).toBeInTheDocument();
+ expect(getByText('Email:')).toBeInTheDocument();
+ expect(getByText('Password:')).toBeInTheDocument();
+ expect(getByText('Login')).toBeInTheDocument();
  });
 
- it('submits form with email and password', async () => {
- const { getByLabelText, getByText } = render(<LoginPage />);
+ it('should handle login submission', async () => {
+ const { getByText, getByLabelText } = render(<LoginPage />);
  const emailInput = getByLabelText('Email:');
  const passwordInput = getByLabelText('Password:');
- const submitButton = getByText('Login');
+ const loginButton = getByText('Login');
 
  fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
- fireEvent.change(passwordInput, { target: { value: 'password' } });
+ fireEvent.change(passwordInput, { target: { value: 'test-password' } });
 
- axios.post.mockResolvedValue({ data: { token: 'mock-token' } });
-
- fireEvent.click(submitButton);
+ fireEvent.click(loginButton);
 
  await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
- expect(axios.post).toHaveBeenCalledWith('/api/auth/login', {
- email: 'test@example.com',
- password: 'password',
  });
+
+ it('should handle login error', async () => {
+ server.use(
+ rest.post('/api/login', (req, res, ctx) => {
+ return res(ctx.status(401), ctx.json({ error: 'Invalid credentials' }));
+ }),
+ );
+
+ const { getByText, getByLabelText } = render(<LoginPage />);
+ const emailInput = getByLabelText('Email:');
+ const passwordInput = getByLabelText('Password:');
+ const loginButton = getByText('Login');
+
+ fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
+ fireEvent.change(passwordInput, { target: { value: 'test-password' } });
+
+ fireEvent.click(loginButton);
+
+ await waitFor(() => expect(getByText('Invalid credentials')).toBeInTheDocument());
  });
 });

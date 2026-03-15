@@ -1,26 +1,39 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom/extend-expect';
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import axios from 'axios';
 import LoginPage from './LoginPage';
 
+const server = setupServer(
+ rest.post('/api/login', (req, res, ctx) => {
+ return res(ctx.json({ token: 'mock-token' }));
+ })
+);
+
+afterEach(() => server.resetHandlers());
+
+afterAll(() => server.close());
+
 describe('LoginPage', () => {
- it('renders correctly', () => {
+ it('renders login form', () => {
  const { getByText } = render(<LoginPage />);
  expect(getByText('Username:')).toBeInTheDocument();
  expect(getByText('Password:')).toBeInTheDocument();
  expect(getByText('Login')).toBeInTheDocument();
  });
 
- it('handles submit event', () => {
+ it('submits login form', async () => {
  const { getByText, getByLabelText } = render(<LoginPage />);
  const usernameInput = getByLabelText('Username:');
  const passwordInput = getByLabelText('Password:');
- const submitButton = getByText('Login');
+ const loginButton = getByText('Login');
 
- fireEvent.change(usernameInput, { target: { value: 'test' } });
- fireEvent.change(passwordInput, { target: { value: 'test' } });
- fireEvent.click(submitButton);
+ fireEvent.change(usernameInput, { target: { value: 'test-username' } });
+ fireEvent.change(passwordInput, { target: { value: 'test-password' } });
 
- // Expect API call to be made
+ fireEvent.click(loginButton);
+
+ await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
  });
 });

@@ -1,30 +1,39 @@
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import axios from 'axios';
 
 const AddContactForm = () => {
  const [name, setName] = useState('');
  const [mobile, setMobile] = useState('');
- const history = useHistory();
+ const [error, setError] = useState(null);
+ const [isLoading, setIsLoading] = useState(false);
 
- const handleSubmit = (event) => {
+ const handleSubmit = async (event) => {
  event.preventDefault();
- // Call API to add contact
- history.push('/contacts');
+ setIsLoading(true);
+ try {
+ const response = await axios.post('/contacts', { name, mobile });
+ // Handle successful contact addition
+ console.log(response);
+ } catch (error) {
+ setError(error.message);
+ } finally {
+ setIsLoading(false);
+ }
  };
 
  return (
- <div>
- <h1>Add Contact Form</h1>
  <form onSubmit={handleSubmit}>
- <label>Name:</label>
- <input type='text' value={name} onChange={(event) => setName(event.target.value)} />
- <br />
- <label>Mobile:</label>
- <input type='text' value={mobile} onChange={(event) => setMobile(event.target.value)} />
- <br />
- <button type='submit'>Add Contact</button>
+ <label>
+ Name:
+ <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
+ </label>
+ <label>
+ Mobile:
+ <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+ </label>
+ {error && <div style={{ color: 'red' }}>{error}</div>}
+ <button type="submit" disabled={isLoading}>{isLoading ? 'Loading...' : 'Add Contact'}</button>
  </form>
- </div>
  );
 };
 

@@ -1,30 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 const ContactsList = () => {
- const [contacts, setContacts] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
- useEffect(() => {
- // Call API to get contacts
- setContacts([
- { id: 1, name: 'John Doe', mobile: '1234567890' },
- { id: 2, name: 'Jane Doe', mobile: '9876543210' },
- ]);
- }, []);
+  const fetchContacts = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get('/contacts');
+      setContacts(response.data);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
- return (
- <div>
- <h1>Contacts List</h1>
- <ul>
- {contacts.map((contact) => (
- <li key={contact.id}>
- <Link to={`/contacts/${contact.id}`}>{contact.name}</Link>
- <span>{contact.mobile}</span>
- </li>
- ))}
- </ul>
- </div>
- );
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div style={{ color: 'red' }}>{error}</div>;
+  }
+
+  return (
+    <ul>
+      {contacts.map((contact) => (
+        <li key={contact.id}>{contact.name} ({contact.mobile})</li>
+      ))}
+    </ul>
+  );
 };
 
 export default ContactsList;

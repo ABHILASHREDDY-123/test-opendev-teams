@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
 import axios from 'axios';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
-  const history = useHistory();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     try {
       const response = await axios.post('/api/login', { username, password });
-      history.push('/profile');
+      // Handle successful login
     } catch (error) {
       setError(error.message);
     }

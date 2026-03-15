@@ -17,6 +17,7 @@ const LoginPage = () => {
     try {
       const response = await axios.post('/api/login', data);
       // Handle successful login
+      console.log(response);
     } catch (error) {
       setError(error.message);
     } finally {

@@ -1,84 +1,47 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from passlib.context import CryptContext
-from jose import jwt, JWTError
 from datetime import datetime, timedelta
-import os
+from jose import jwt, JWTError
 
 app = FastAPI()
 
-# Define the Pydantic models
-class User(BaseModel):
-    email: str
-    password: str
-
+# OAuth2 schema
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-class TokenData(BaseModel):
-    email: str | None = None
+# User schema
+class User(BaseModel):
+    email: str
+    hashed_password: str
 
-# Define the password hashing and verification functions
+# Password context
 pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+# OAuth2 password bearer
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-# Define the JWT token generation and verification functions
-SECRET_KEY = os.environ.get('SECRET_KEY')
-ALGORITHM = os.environ.get('ALGORITHM')
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get('ACCESS_TOKEN_EXPIRE_MINUTES'))
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({'exp': expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def get_current_user(token: str):
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail='Could not validate credentials',
-        headers={'WWW-Authenticate': 'Bearer'},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get('sub')
-        if email is None:
-            raise credentials_exception
-        token_data = TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    return token_data.email
-
-# Define the in-memory user store
+# In-memory user store (replace with a database in production)
 users = {}
 
-# Define the authentication routes
+# Register a new user
 @app.post('/auth/register')
-async def register(user: User):
-    if user.email in users:
+async def register(email: str, password: str):
+    if email in users:
         raise HTTPException(status_code=400, detail='Email already registered')
-    hashed_password = get_password_hash(user.password)
-    users[user.email] = hashed_password
+    hashed_password = pwd_context.hash(password)
+    users[email] = hashed_password
     return {'message': 'User created successfully'}
 
+# Login and get a JWT token
 @app.post('/auth/login')
-async def login(user: User):
-    if user.email not in users:
-        raise HTTPException(status_code=401, detail='Invalid email or password')
-    stored_password = users[user.email]
-    if not verify_password(user.password, stored_password):
-        raise HTTPException(status_code=401, detail='Invalid email or password')
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(data={'sub': user.email}, expires_delta=access_token_expires)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    if form_data.username not in users:
+        raise HTTPException(status_code=400, detail='Invalid email or password')
+    if not pwd_context.verify(form_data.password, users[form_data.username]):
+        raise HTTPException(status_code=400, detail='Invalid email or password')
+    access_token_expires = timedelta(minutes=30)
+    access_token = jwt.encode({'sub': form_data.username, 'exp': datetime.utcnow() + access_token_expires}, 'secret_key', algorithm='HS256')
     return {'access_token': access_token, 'token_type': 'bearer'}

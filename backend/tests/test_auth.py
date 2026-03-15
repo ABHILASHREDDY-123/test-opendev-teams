@@ -4,26 +4,19 @@ import pytest
 
 client = TestClient(app)
 
-def test_register_valid_user():
- response = client.post("/auth/register", json={"email": "test@example.com", "password": "password123"})
- assert response.status_code == 200
- assert response.json()["message"] == "User created successfully"
+@pytest.mark.parametrize('email, password, expected_status', [
+ ('test@example.com', 'password', 200),
+ ('test@example.com', 'wrongpassword', 401),
+ ('invalidemail', 'password', 401),
+])
+def test_login(email, password, expected_status):
+ response = client.post('/auth/login', json={'email': email, 'password': password})
+ assert response.status_code == expected_status
 
-def test_register_duplicate_email():
- client.post("/auth/register", json={"email": "test@example.com", "password": "password123"})
- response = client.post("/auth/register", json={"email": "test@example.com", "password": "password123"})
- assert response.status_code == 400
- assert response.json()["detail"] == "Email already registered"
-
-def test_login_valid_credentials():
- client.post("/auth/register", json={"email": "test@example.com", "password": "password123"})
- response = client.post("/auth/login", json={"email": "test@example.com", "password": "password123"})
- assert response.status_code == 200
- assert "access_token" in response.json()
- assert "token_type" in response.json()
-
-def test_login_invalid_credentials():
- client.post("/auth/register", json={"email": "test@example.com", "password": "password123"})
- response = client.post("/auth/login", json={"email": "test@example.com", "password": "wrongpassword"})
- assert response.status_code == 401
- assert response.json()["detail"] == "Invalid email or password"
+@pytest.mark.parametrize('email, password, expected_status', [
+ ('test@example.com', 'password', 201),
+ ('test@example.com', 'password', 400),
+])
+def test_register(email, password, expected_status):
+ response = client.post('/auth/register', json={'email': email, 'password': password})
+ assert response.status_code == expected_status

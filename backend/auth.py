@@ -1,29 +1,31 @@
-from passlib.context import CryptContext
-from python_jose import jwt
-from datetime import datetime, timedelta
-import pytest
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+import jwt
+import bcrypt
+import os
 
-crypt_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
-secret_key = 'your_secret_key'
-algorithm = 'HS256'
-access_token_expires_minutes = 30
+class Token(BaseModel):
+ access_token: str
+ token_type: str
 
-def hash_password(password: str):
- return crypt_context.hash(password)
+token_auth = HTTPBearer()
 
-def verify_password(plain_password: str, hashed_password: str):
- return crypt_context.verify(plain_password, hashed_password)
+def hash_password(password: str) -> str:
+ return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-def create_access_token(data: dict):
- expire = datetime.utcnow() + timedelta(minutes=access_token_expires_minutes)
- data.update({'exp': expire})
- return jwt.encode(data, secret_key, algorithm=algorithm)
+def verify_password(plain: str, hashed: str) -> bool:
+ return bcrypt.checkpw(plain.encode(), hashed.encode())
 
-def get_current_user(token: str):
+def create_access_token(data: dict) -> str:
+ return jwt.encode(data, os.environ['SECRET_KEY'], algorithm='HS256').decode()
+
+def get_current_user(token: str) -> dict:
  try:
- payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+ payload = jwt.decode(token, os.environ['SECRET_KEY'], algorithms=['HS256'])
  return payload
  except jwt.ExpiredSignatureError:
- return None
+ raise HTTPException(status_code=401, detail='Access token expired')
  except jwt.InvalidTokenError:
- return None
+ raise HTTPException(status_code=401, detail='Invalid access token')

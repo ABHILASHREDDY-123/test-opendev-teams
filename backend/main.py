@@ -1,104 +1,101 @@
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List
+import jwt
+import bcrypt
+import os
 import pytest
-from pytest import fixture
+
 app = FastAPI()
 
-# Define the User model
+# In-memory stores for demonstration purposes only
+users_db = {}
+contacts_db = {}
+
 class User(BaseModel):
     id: int
-    username: str
-    email: str
-    full_name: str
-    disabled: bool = False
-    # Add password hashing
+    mobile: str
     password: str
-    # Add JWT token
-    token: str
-    # Add contact list
-    contacts: List[str] = []
 
-# Define the Contact model
 class Contact(BaseModel):
     id: int
     name: str
-    email: str
-    phone: str
+    mobile: str
     owner_id: int
-    # Add contact details
-    details: str = ""
 
-# In-memory data store for users and contacts (replace with a database in production)
-users = {}
-contacts = {}
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
-# OAuth2 scheme definition
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+token_auth = HTTPBearer()
 
-# Dependency to get the current user
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    # Implement token verification and user retrieval
-    for user_id, user in users.items():
-        if user.token == token:
-            return user
-    raise HTTPException(status_code=401, detail="Invalid token")
+# Authentication utilities
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-# User registration endpoint
-@app.post("/register")
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
+
+def create_access_token(data: dict) -> str:
+    return jwt.encode(data, os.environ['SECRET_KEY'], algorithm='HS256').decode()
+
+def get_current_user(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, os.environ['SECRET_KEY'], algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail='Access token expired')
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail='Invalid access token')
+
+# Routes
+@app.post('/auth/register', response_model=User)
 async def register(user: User):
-    # Implement user registration logic
-    if user.username in users:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    users[user.username] = user
-    return user
+    if user.mobile in [u['mobile'] for u in users_db.values()]:
+        raise HTTPException(status_code=409, detail='Mobile number already registered')
+    hashed_password = hash_password(user.password)
+    user_id = len(users_db) + 1
+    users_db[user_id] = {'id': user_id, 'mobile': user.mobile, 'password': hashed_password}
+    return users_db[user_id]
 
-# User login endpoint
-@app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Implement user login logic
-    for user_id, user in users.items():
-        if user.username == form_data.username and user.password == form_data.password:
-            # Generate and return a JWT token
-            token = "example_token"
-            user.token = token
-            return {"access_token": token, "token_type": "bearer"}
-    raise HTTPException(status_code=401, detail="Invalid username or password")
+@app.post('/auth/login', response_model=Token)
+async def login(mobile: str, password: str):
+    for user in users_db.values():
+        if user['mobile'] == mobile and verify_password(password, user['password']):
+            access_token = create_access_token({'sub': user['id']})
+            return {'access_token': access_token, 'token_type': 'bearer'}
+    raise HTTPException(status_code=401, detail='Invalid mobile or password')
 
-# Contact creation endpoint
-@app.post("/contacts")
-async def create_contact(contact: Contact, current_user: User = Depends(get_current_user)):
-    # Implement contact creation logic
-    contact.owner_id = current_user.id
-    contacts[contact.id] = contact
-    return contact
+@app.post('/contacts/', response_model=Contact)
+async def create_contact(contact: Contact, token: HTTPAuthorizationCredentials = Depends(token_auth)):
+    current_user = get_current_user(token.credentials)
+    contact_id = len(contacts_db) + 1
+    contacts_db[contact_id] = {'id': contact_id, 'name': contact.name, 'mobile': contact.mobile, 'owner_id': current_user['sub']}
+    return contacts_db[contact_id]
 
-# Contact retrieval endpoint
-@app.get("/contacts")
-async def read_contacts(current_user: User = Depends(get_current_user)):
-    # Implement contact retrieval logic
-    user_contacts = [contact for contact in contacts.values() if contact.owner_id == current_user.id]
-    return user_contacts
+@app.get('/contacts/', response_model=List[Contact])
+async def read_contacts(token: HTTPAuthorizationCredentials = Depends(token_auth)):
+    current_user = get_current_user(token.credentials)
+    return [contact for contact in contacts_db.values() if contact['owner_id'] == current_user['sub']]
 
-# Contact update endpoint
-@app.put("/contacts/{contact_id}")
-async def update_contact(contact_id: int, contact: Contact, current_user: User = Depends(get_current_user)):
-    # Implement contact update logic
-    if contact_id not in contacts:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    if contacts[contact_id].owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    contacts[contact_id] = contact
-    return contact
+@app.put('/contacts/{contact_id}', response_model=Contact)
+async def update_contact(contact_id: int, contact: Contact, token: HTTPAuthorizationCredentials = Depends(token_auth)):
+    current_user = get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=404, detail='Contact not found')
+    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
+        raise HTTPException(status_code=403, detail='You do not own this contact')
+    contacts_db[contact_id]['name'] = contact.name
+    contacts_db[contact_id]['mobile'] = contact.mobile
+    return contacts_db[contact_id]
 
-# Contact deletion endpoint
-@app.delete("/contacts/{contact_id}")
-async def delete_contact(contact_id: int, current_user: User = Depends(get_current_user)):
-    # Implement contact deletion logic
-    if contact_id not in contacts:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    if contacts[contact_id].owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    del contacts[contact_id]
-    return {"message": "Contact deleted"}
+@app.delete('/contacts/{contact_id}')
+async def delete_contact(contact_id: int, token: HTTPAuthorizationCredentials = Depends(token_auth)):
+    current_user = get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=404, detail='Contact not found')
+    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
+        raise HTTPException(status_code=403, detail='You do not own this contact')
+    del contacts_db[contact_id]
+    return {'message': 'Contact deleted'}

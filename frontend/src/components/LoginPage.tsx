@@ -1,43 +1,27 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import axios from 'axios';
-
-interface LoginForm {
-  username: string;
-  password: string;
-}
+import './LoginPage.css';
 
 const LoginPage = () => {
-  const { register, handleSubmit, errors } = useForm<LoginForm>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
-  const onSubmit = async (data: LoginForm) => {
-    setLoading(true);
-    try {
-      const response = await axios.post('/api/login', data);
-      // Handle successful login
-      console.log(response);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    // Call API to login
   };
 
   return (
-    <div>
-      <h1>Login Page</h1>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <label>Username:</label>
-        <input {...register('username')} />
-        {errors.username && <div>{errors.username.message}</div>}
-        <label>Password:</label>
-        <input {...register('password')} />
-        {errors.password && <div>{errors.password.message}</div>}
-        <button type='submit'>Login</button>
-        {loading && <div>Loading...</div>}
-        {error && <div>{error}</div>}
+    <div className="login-page">
+      <form onSubmit={handleSubmit}>
+        <label>
+          Username:
+          <input type="text" value={username} onChange={(event) => setUsername(event.target.value)} />
+        </label>
+        <label>
+          Password:
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        <button type="submit">Login</button>
       </form>
     </div>
   );

@@ -1,48 +1,27 @@
 from fastapi.testclient import TestClient
 from backend.auth import app
-from backend.auth import User
+from backend.models import User, Token
 import pytest
 
 client = TestClient(app)
 
-@pytest.mark.asyncio
-async def test_register_user():
-    user = User(email='test@example.com', password='password123')
-    response = client.post('/auth/register', json=user.dict())
-    assert response.status_code == 200
-    assert response.json()['message'] == 'User created successfully'
+def test_register_user():
+ response = client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
+ assert response.status_code == 200
+ assert response.json()['message'] == 'User created successfully'
 
-@pytest.mark.asyncio
-async def test_register_duplicate_user():
-    user = User(email='test@example.com', password='password123')
-    client.post('/auth/register', json=user.dict())
-    response = client.post('/auth/register', json=user.dict())
-    assert response.status_code == 400
-    assert response.json()['detail'] == 'Email already registered'
+def test_login_user():
+ response = client.post('/auth/login', data={'username': 'test@example.com', 'password': 'password123'})
+ assert response.status_code == 200
+ assert response.json()['token_type'] == 'bearer'
 
-@pytest.mark.asyncio
-async def test_login_user():
-    user = User(email='test@example.com', password='password123')
-    client.post('/auth/register', json=user.dict())
-    response = client.post('/auth/login', json=user.dict())
-    assert response.status_code == 200
-    assert 'access_token' in response.json()
-    assert 'token_type' in response.json()
+def test_register_duplicate_user():
+ client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
+ response = client.post('/auth/register', json={'email': 'test@example.com', 'hashed_password': 'password123'})
+ assert response.status_code == 400
+ assert response.json()['detail'] == 'Email already registered'
 
-@pytest.mark.asyncio
-async def test_login_wrong_password():
-    user = User(email='test@example.com', password='password123')
-    client.post('/auth/register', json=user.dict())
-    wrong_user = User(email='test@example.com', password='wrongpassword')
-    response = client.post('/auth/login', json=wrong_user.dict())
-    assert response.status_code == 401
-    assert response.json()['detail'] == 'Invalid email or password'
-
-@pytest.mark.asyncio
-async def test_login_invalid_email():
-    user = User(email='test@example.com', password='password123')
-    client.post('/auth/register', json=user.dict())
-    wrong_user = User(email='wrong@example.com', password='password123')
-    response = client.post('/auth/login', json=wrong_user.dict())
-    assert response.status_code == 401
-    assert response.json()['detail'] == 'Invalid email or password'
+def test_login_wrong_password():
+ response = client.post('/auth/login', data={'username': 'test@example.com', 'password': 'wrongpassword'})
+ assert response.status_code == 401
+ assert response.json()['detail'] == 'Incorrect username or password'

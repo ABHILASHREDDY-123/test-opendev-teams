@@ -1,39 +1,31 @@
-// Implement the LoginPage component with validation and API call
 import React, { useState } from 'react';
-import axios from 'axios';
+import { useHistory } from 'react-router-dom';
 
 const LoginPage = () => {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const history = useHistory();
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    setLoading(true);
-    try {
-      const response = await axios.post('/api/auth/login', { mobile, password });
-      // Handle successful login
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
+    // Call API to login
+    console.log(`Login with mobile: ${mobile} and password: ${password}`);
+    history.push('/contacts');
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        Mobile:
-        <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
-      </label>
-      <label>
-        Password:
-        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-      </label>
-      <button type="submit" disabled={loading}>Login</button>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
-    </form>
+    <div>
+      <h1>Login Page</h1>
+      <form onSubmit={handleSubmit}>
+        <label>Mobile:</label>
+        <input type='text' value={mobile} onChange={(event) => setMobile(event.target.value)} />
+        <br />
+        <label>Password:</label>
+        <input type='password' value={password} onChange={(event) => setPassword(event.target.value)} />
+        <br />
+        <button type='submit'>Login</button>
+      </form>
+    </div>
   );
 };
 

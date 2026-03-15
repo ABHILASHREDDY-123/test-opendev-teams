@@ -1,74 +1,81 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from backend.models import UserRegister, UserLogin, UserOut, TokenResponse, ContactCreate, ContactUpdate, ContactOut
-from backend.auth import hash_password, verify_password, create_access_token, get_current_user
 from typing import List
+from . import models, auth
 
-class Contact:
- def __init__(self, id: str, name: str, mobile: str, owner_id: str):
- self.id = id
- self.name = name
- self.mobile = mobile
- self.owner_id = owner_id
-
-def get_contact(contact_id: str, contacts: List[Contact]) -> Contact:
- for contact in contacts:
- if contact.id == contact_id:
- return contact
- raise HTTPException(status_code=404, detail="Contact not found")
+class Contact(BaseModel):
+    id: int
+    name: str
+    mobile: str
+    owner_id: int
 
 app = FastAPI()
+
+# in-memory data stores (replace with a database in production)
 users_db = {}
 contacts_db = {}
 
-@app.post("/auth/register")
-async def register(user: UserRegister):
- if user.mobile in users_db:
- raise HTTPException(status_code=409, detail="Mobile number already registered")
- hashed_password = hash_password(user.password)
- user_id = str(len(users_db))
- users_db[user.mobile] = {
- "id": user_id,
- "hashed_password": hashed_password
- }
- return UserOut(id=user_id, mobile=user.mobile)
+security = HTTPBearer()
 
-@app.post("/auth/login")
-async def login(user: UserLogin):
- if user.mobile not in users_db:
- raise HTTPException(status_code=401, detail="Mobile number not registered")
- stored_user = users_db[user.mobile]
- if not verify_password(user.password, stored_user["hashed_password"]):
- raise HTTPException(status_code=401, detail="Incorrect password")
- access_token = create_access_token({"user_id": stored_user["id"]})
- return TokenResponse(access_token=access_token, token_type="bearer")
+@app.post('/auth/register')
+def register(user_register: models.UserRegister):
+    if user_register.mobile in users_db:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Mobile number already registered')
+    hashed_password = auth.hash_password(user_register.password)
+    user_id = len(users_db) + 1
+    users_db[user_register.mobile] = {'id': user_id, 'hashed_password': hashed_password}
+    return {'id': user_id, 'mobile': user_register.mobile}
 
-@app.post("/contacts")
-async def create_contact(contact: ContactCreate, token: str = Depends(get_current_user)):
- contact_id = str(len(contacts_db))
- contacts_db[contact_id] = Contact(contact_id, contact.name, contact.mobile, token)
- return ContactOut(id=contact_id, name=contact.name, mobile=contact.mobile, owner_id=token)
+@app.post('/auth/login')
+def login(user_login: models.UserLogin):
+    if user_login.mobile not in users_db:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid mobile number or password')
+    stored_user = users_db[user_login.mobile]
+    if not auth.verify_password(user_login.password, stored_user['hashed_password']):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid mobile number or password')
+    access_token = auth.create_access_token(data={'sub': user_login.mobile})
+    return {'access_token': access_token, 'token_type': 'bearer'}
 
-@app.get("/contacts")
-async def read_contacts(token: str = Depends(get_current_user)):
- contacts = [contact for contact in contacts_db.values() if contact.owner_id == token]
- return contacts
+@app.post('/contacts/')
+def create_contact(contact: models.ContactCreate, token: HTTPAuthorizationCredentials = Depends(security)):
+    # authenticate and authorize the request
+    payload = auth.get_current_user(token.credentials)
+    owner_id = len(contacts_db) + 1
+    contact_id = len(contacts_db) + 1
+    contacts_db[contact_id] = {'id': contact_id, 'name': contact.name, 'mobile': contact.mobile, 'owner_id': owner_id}
+    return {'id': contact_id, 'name': contact.name, 'mobile': contact.mobile, 'owner_id': owner_id}
 
-@app.put("/contacts/{contact_id}")
-async def update_contact(contact_id: str, contact: ContactUpdate, token: str = Depends(get_current_user)):
- contact_obj = get_contact(contact_id, list(contacts_db.values()))
- if contact_obj.owner_id != token:
- raise HTTPException(status_code=404, detail="Contact not found")
- if contact.name:
- contact_obj.name = contact.name
- if contact.mobile:
- contact_obj.mobile = contact.mobile
- return ContactOut(id=contact_id, name=contact_obj.name, mobile=contact_obj.mobile, owner_id=token)
+@app.get('/contacts/')
+def read_contacts(token: HTTPAuthorizationCredentials = Depends(security)):
+    # authenticate and authorize the request
+    payload = auth.get_current_user(token.credentials)
+    contacts = [contact for contact in contacts_db.values() if contact['owner_id'] == payload['sub']]
+    return contacts
 
-@app.delete("/contacts/{contact_id}")
-async def delete_contact(contact_id: str, token: str = Depends(get_current_user)):
- contact_obj = get_contact(contact_id, list(contacts_db.values()))
- if contact_obj.owner_id != token:
- raise HTTPException(status_code=404, detail="Contact not found")
- del contacts_db[contact_id]
- return {"message": "Contact deleted"}
+@app.put('/contacts/{contact_id}')
+def update_contact(contact_id: int, contact: models.ContactUpdate, token: HTTPAuthorizationCredentials = Depends(security)):
+    # authenticate and authorize the request
+    payload = auth.get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Contact not found')
+    stored_contact = contacts_db[contact_id]
+    if stored_contact['owner_id'] != payload['sub']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not own this contact')
+    if contact.name:
+        stored_contact['name'] = contact.name
+    if contact.mobile:
+        stored_contact['mobile'] = contact.mobile
+    return stored_contact
+
+@app.delete('/contacts/{contact_id}')
+def delete_contact(contact_id: int, token: HTTPAuthorizationCredentials = Depends(security)):
+    # authenticate and authorize the request
+    payload = auth.get_current_user(token.credentials)
+    if contact_id not in contacts_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Contact not found')
+    stored_contact = contacts_db[contact_id]
+    if stored_contact['owner_id'] != payload['sub']:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not own this contact')
+    del contacts_db[contact_id]
+    return {'message': 'Contact deleted successfully'}

@@ -1,57 +1,96 @@
 from fastapi.testclient import TestClient
 from main import app
-from models import ContactCreate, ContactOut
+from models import ContactCreate, ContactUpdate
 import pytest
 
 client = TestClient(app)
 
-def test_create_contact():
- # Register and login to get access token
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- login_response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
- access_token = login_response.json()['access_token']
- # Create contact
- response = client.post('/contacts/', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {access_token}'})
+def test_create_contact):
+ response = client.post(
+ "/auth/register",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token_response = client.post(
+ "/auth/login",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token = token_response.json()["access_token"]
+ response = client.post(
+ "/contacts",
+ json={"name": "testcontact", "email": "test@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
  assert response.status_code == 200
- assert 'id' in response.json()
- assert 'name' in response.json()
- assert 'mobile' in response.json()
+ assert response.json()["message"] == "Contact created successfully"
 
-def test_list_contacts():
- # Register and login to get access token
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- login_response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
- access_token = login_response.json()['access_token']
- # Create two contacts
- client.post('/contacts/', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {access_token}'})
- client.post('/contacts/', json={'name': 'Jane Doe', 'mobile': '5555555555'}, headers={'Authorization': f'Bearer {access_token}'})
- # List contacts
- response = client.get('/contacts/', headers={'Authorization': f'Bearer {access_token}'})
+def test_list_contacts):
+ response = client.post(
+ "/auth/register",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token_response = client.post(
+ "/auth/login",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token = token_response.json()["access_token"]
+ client.post(
+ "/contacts",
+ json={"name": "testcontact1", "email": "test1@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
+ client.post(
+ "/contacts",
+ json={"name": "testcontact2", "email": "test2@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
+ response = client.get(
+ "/contacts",
+ headers={"Authorization": f"Bearer {token}"},
+ )
  assert response.status_code == 200
  assert len(response.json()) == 2
 
-def test_update_contact():
- # Register and login to get access token
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- login_response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
- access_token = login_response.json()['access_token']
- # Create contact
- create_response = client.post('/contacts/', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {access_token}'})
- contact_id = create_response.json()['id']
- # Update contact
- response = client.put(f'/contacts/{contact_id}', json={'name': 'Jane Doe', 'mobile': '5555555555'}, headers={'Authorization': f'Bearer {access_token}'})
+def test_update_contact):
+ response = client.post(
+ "/auth/register",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token_response = client.post(
+ "/auth/login",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token = token_response.json()["access_token"]
+ client.post(
+ "/contacts",
+ json={"name": "testcontact", "email": "test@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
+ response = client.put(
+ "/contacts/1",
+ json={"name": "updatedcontact", "email": "updated@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
  assert response.status_code == 200
- assert response.json()['name'] == 'Jane Doe'
- assert response.json()['mobile'] == '5555555555'
+ assert response.json()["message"] == "Contact updated successfully"
 
-def test_delete_contact():
- # Register and login to get access token
- response = client.post('/auth/register', json={'mobile': '1234567890', 'password': 'password123'})
- login_response = client.post('/auth/login', json={'mobile': '1234567890', 'password': 'password123'})
- access_token = login_response.json()['access_token']
- # Create contact
- create_response = client.post('/contacts/', json={'name': 'John Doe', 'mobile': '9876543210'}, headers={'Authorization': f'Bearer {access_token}'})
- contact_id = create_response.json()['id']
- # Delete contact
- response = client.delete(f'/contacts/{contact_id}', headers={'Authorization': f'Bearer {access_token}'})
+def test_delete_contact):
+ response = client.post(
+ "/auth/register",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token_response = client.post(
+ "/auth/login",
+ json={"username": "testuser", "password": "testpassword"},
+ )
+ token = token_response.json()["access_token"]
+ client.post(
+ "/contacts",
+ json={"name": "testcontact", "email": "test@example.com"},
+ headers={"Authorization": f"Bearer {token}"},
+ )
+ response = client.delete(
+ "/contacts/1",
+ headers={"Authorization": f"Bearer {token}"},
+ )
  assert response.status_code == 200
+ assert response.json()["message"] == "Contact deleted successfully"

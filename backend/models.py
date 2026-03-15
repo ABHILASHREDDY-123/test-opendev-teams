@@ -1,17 +1,19 @@
 from pydantic import BaseModel
-from typing import Optional
+from datetime import datetime
 
 class UserRegister(BaseModel):
-    mobile: str
+    username: str
     password: str
 
 class UserLogin(BaseModel):
-    mobile: str
+    username: str
     password: str
 
 class UserOut(BaseModel):
-    id: int
-    mobile: str
+    username: str
+    email: str
+    full_name: str
+    disabled: bool
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -19,14 +21,14 @@ class TokenResponse(BaseModel):
 
 class ContactCreate(BaseModel):
     name: str
-    mobile: str
+    email: str
 
 class ContactUpdate(BaseModel):
-    name: Optional[str]
-    mobile: Optional[str]
+    name: str | None
+    email: str | None
 
 class ContactOut(BaseModel):
     id: int
     name: str
-    mobile: str
-    owner_id: int
+    email: str
+    owner: str

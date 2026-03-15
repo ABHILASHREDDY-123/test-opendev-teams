@@ -1,31 +1,30 @@
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Depends, HTTPException
-from pydantic import BaseModel
-from typing import Optional
-import jwt
-import bcrypt
-import os
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
 
-class Token(BaseModel):
- access_token: str
- token_type: str
+class Auth:
+ def __init__(self, secret_key: str, algorithm: str, access_token_expire_minutes: int):
+ self.secret_key = secret_key
+ self.algorithm = algorithm
+ self.access_token_expire_minutes = access_token_expire_minutes
 
-token_auth = HTTPBearer()
+ def verify_password(self, plain_password: str, hashed_password: str):
+ pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
+ return pwd_context.verify(plain_password, hashed_password)
 
-def hash_password(password: str) -> str:
- return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+ def get_password_hash(self, password: str):
+ pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
+ return pwd_context.hash(password)
 
-def verify_password(plain: str, hashed: str) -> bool:
- return bcrypt.checkpw(plain.encode(), hashed.encode())
+ def create_access_token(self, data: dict):
+ to_encode = data.copy()
+ expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+ to_encode.update({"exp": expire})
+ encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+ return encoded_jwt
 
-def create_access_token(data: dict) -> str:
- return jwt.encode(data, os.environ['SECRET_KEY'], algorithm='HS256').decode()
-
-def get_current_user(token: str) -> dict:
- try:
- payload = jwt.decode(token, os.environ['SECRET_KEY'], algorithms=['HS256'])
- return payload
- except jwt.ExpiredSignatureError:
- raise HTTPException(status_code=401, detail='Access token expired')
- except jwt.InvalidTokenError:
- raise HTTPException(status_code=401, detail='Invalid access token')
+auth = Auth(
+ secret_key="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
+ algorithm="HS256",
+ access_token_expire_minutes=30
+ )

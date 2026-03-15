@@ -1,101 +1,150 @@
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List
-import jwt
-import bcrypt
-import os
-import pytest
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
-# In-memory stores for demonstration purposes only
+# OAuth2 schema
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], default="bcrypt")
+
+# JWT secret key
+SECRET_KEY = "secretkey"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# In-memory user storage
 users_db = {}
+
+# In-memory contact storage
 contacts_db = {}
 
 class User(BaseModel):
-    id: int
-    mobile: str
+    username: str
+    email: str
+    full_name: str
+    disabled: bool = False
+
+class UserInDB(User):
     password: str
 
 class Contact(BaseModel):
     id: int
     name: str
-    mobile: str
-    owner_id: int
+    email: str
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
-token_auth = HTTPBearer()
+def get_password_hash(password):
+    return pwd_context.hash(password)
 
-# Authentication utilities
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+def get_user(db, username):
+    if username in db:
+        user_dict = db[username]
+        return UserInDB(**user_dict)
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+def authenticate_user(fake_db, username: str, password: str):
+    user = get_user(fake_db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.password):
+        return False
+    return user
 
-def create_access_token(data: dict) -> str:
-    return jwt.encode(data, os.environ['SECRET_KEY'], algorithm='HS256').decode()
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-def get_current_user(token: str) -> dict:
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        payload = jwt.decode(token, os.environ['SECRET_KEY'], algorithms=['HS256'])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail='Access token expired')
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail='Invalid access token')
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    user = get_user(users_db, token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
 
-# Routes
-@app.post('/auth/register', response_model=User)
-async def register(user: User):
-    if user.mobile in [u['mobile'] for u in users_db.values()]:
-        raise HTTPException(status_code=409, detail='Mobile number already registered')
-    hashed_password = hash_password(user.password)
-    user_id = len(users_db) + 1
-    users_db[user_id] = {'id': user_id, 'mobile': user.mobile, 'password': hashed_password}
-    return users_db[user_id]
+class TokenData(BaseModel):
+    username: str | None = None
 
-@app.post('/auth/login', response_model=Token)
-async def login(mobile: str, password: str):
-    for user in users_db.values():
-        if user['mobile'] == mobile and verify_password(password, user['password']):
-            access_token = create_access_token({'sub': user['id']})
-            return {'access_token': access_token, 'token_type': 'bearer'}
-    raise HTTPException(status_code=401, detail='Invalid mobile or password')
+@app.post("/auth/register")
+async def register(username: str, password: str):
+    if username in users_db:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    hashed_password = get_password_hash(password)
+    users_db[username] = {
+        "username": username,
+        "email": "",
+        "full_name": "",
+        "disabled": False,
+        "password": hashed_password,
+    }
+    return {"message": "User created successfully"}
 
-@app.post('/contacts/', response_model=Contact)
-async def create_contact(contact: Contact, token: HTTPAuthorizationCredentials = Depends(token_auth)):
-    current_user = get_current_user(token.credentials)
+@app.post("/auth/login")
+async def login(username: str, password: str):
+    user = authenticate_user(users_db, username, password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/contacts")
+async def create_contact(name: str, email: str, current_user: User = Depends(get_current_user)):
     contact_id = len(contacts_db) + 1
-    contacts_db[contact_id] = {'id': contact_id, 'name': contact.name, 'mobile': contact.mobile, 'owner_id': current_user['sub']}
-    return contacts_db[contact_id]
+    contacts_db[contact_id] = {
+        "id": contact_id,
+        "name": name,
+        "email": email,
+        "owner": current_user.username,
+    }
+    return {"message": "Contact created successfully"}
 
-@app.get('/contacts/', response_model=List[Contact])
-async def read_contacts(token: HTTPAuthorizationCredentials = Depends(token_auth)):
-    current_user = get_current_user(token.credentials)
-    return [contact for contact in contacts_db.values() if contact['owner_id'] == current_user['sub']]
+@app.get("/contacts")
+async def read_contacts(current_user: User = Depends(get_current_user)):
+    contacts = [contact for contact in contacts_db.values() if contact["owner"] == current_user.username]
+    return contacts
 
-@app.put('/contacts/{contact_id}', response_model=Contact)
-async def update_contact(contact_id: int, contact: Contact, token: HTTPAuthorizationCredentials = Depends(token_auth)):
-    current_user = get_current_user(token.credentials)
+@app.put("/contacts/{contact_id}")
+async def update_contact(contact_id: int, name: str, email: str, current_user: User = Depends(get_current_user)):
     if contact_id not in contacts_db:
-        raise HTTPException(status_code=404, detail='Contact not found')
-    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
-        raise HTTPException(status_code=403, detail='You do not own this contact')
-    contacts_db[contact_id]['name'] = contact.name
-    contacts_db[contact_id]['mobile'] = contact.mobile
-    return contacts_db[contact_id]
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if contacts_db[contact_id]["owner"] != current_user.username:
+        raise HTTPException(status_code=403, detail="You do not own this contact")
+    contacts_db[contact_id]["name"] = name
+    contacts_db[contact_id]["email"] = email
+    return {"message": "Contact updated successfully"}
 
-@app.delete('/contacts/{contact_id}')
-async def delete_contact(contact_id: int, token: HTTPAuthorizationCredentials = Depends(token_auth)):
-    current_user = get_current_user(token.credentials)
+@app.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: int, current_user: User = Depends(get_current_user)):
     if contact_id not in contacts_db:
-        raise HTTPException(status_code=404, detail='Contact not found')
-    if contacts_db[contact_id]['owner_id'] != current_user['sub']:
-        raise HTTPException(status_code=403, detail='You do not own this contact')
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if contacts_db[contact_id]["owner"] != current_user.username:
+        raise HTTPException(status_code=403, detail="You do not own this contact")
     del contacts_db[contact_id]
-    return {'message': 'Contact deleted'}
+    return {"message": "Contact deleted successfully"}

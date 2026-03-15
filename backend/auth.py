@@ -3,42 +3,41 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
-import jwt
+from jose import jwt
 
 app = FastAPI()
 
-# Define the user model
+# Define the Pydantic models
 class User(BaseModel):
     email: str
     password: str
 
-# Define the token model
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-# Initialize the password context
+# Define the password context
 pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
-# Initialize the secret key for JWT
-secret_key = 'secret_key'
+# Define the secret key for JWT
+secret_key = 'your_secret_key'
 
-# Initialize the in-memory user store
+# Define the in-memory user store
 users = {}
 
-# Define the authentication router
+# Register a new user
 @app.post('/auth/register')
 def register(user: User):
-    # Check if the user already exists
-    if user.email in users:
-        raise HTTPException(status_code=400, detail='Email already exists')
     # Hash the password
     hashed_password = pwd_context.hash(user.password)
+    # Check if the user already exists
+    if user.email in users:
+        raise HTTPException(status_code=400, detail='Email already in use')
     # Create a new user
     users[user.email] = hashed_password
     return {'message': 'User created successfully'}
 
-# Define the login endpoint
+# Login a user
 @app.post('/auth/login')
 def login(user: User):
     # Check if the user exists
@@ -48,5 +47,5 @@ def login(user: User):
     if not pwd_context.verify(user.password, users[user.email]):
         raise HTTPException(status_code=401, detail='Invalid email or password')
     # Generate a JWT token
-    access_token = jwt.encode({'email': user.email, 'exp': datetime.utcnow() + timedelta(minutes=30)}, secret_key, algorithm='HS256')
+    access_token = jwt.encode({'sub': user.email, 'exp': datetime.utcnow() + timedelta(minutes=30)}, secret_key, algorithm='HS256')
     return {'access_token': access_token, 'token_type': 'bearer'}

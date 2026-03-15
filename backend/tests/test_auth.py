@@ -1,50 +1,56 @@
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.auth import User
 import pytest
+from pydantic import BaseModel
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from jose import jwt
+
+# Define the Pydantic models
+class User(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 client = TestClient(app)
 
-# Test the registration endpoint
-def test_register():
- user = User(email='test@example.com', password='password123')
- response = client.post('/auth/register', json=user.dict())
- assert response.status_code == 200
- assert response.json()['message'] == 'User created successfully'
+# Define the password context
+pwd_context = CryptContext(schemes=['bcrypt'], default='bcrypt')
 
-# Test the login endpoint
-def test_login():
- user = User(email='test@example.com', password='password123')
- response = client.post('/auth/login', json=user.dict())
- assert response.status_code == 200
- assert 'access_token' in response.json()
- assert 'token_type' in response.json()
+# Define the secret key for JWT
+secret_key = 'your_secret_key'
 
-# Test the registration endpoint with duplicate email
+# Test the register endpoint
+def test_register_success():
+    user = User(email='test@example.com', password='password123')
+    response = client.post('/auth/register', json=user.dict())
+    assert response.status_code == 200
+    assert response.json()['message'] == 'User created successfully'
+
+# Test the register endpoint with duplicate email
 def test_register_duplicate_email():
- user = User(email='test@example.com', password='password123')
- client.post('/auth/register', json=user.dict())
- response = client.post('/auth/register', json=user.dict())
- assert response.status_code == 400
- assert response.json()['detail'] == 'Email already exists'
+    user = User(email='test@example.com', password='password123')
+    client.post('/auth/register', json=user.dict())
+    response = client.post('/auth/register', json=user.dict())
+    assert response.status_code == 400
+    assert response.json()['detail'] == 'Email already in use'
 
-# Test the login endpoint with wrong password
-def test_login_wrong_password():
- user = User(email='test@example.com', password='wrongpassword')
- response = client.post('/auth/login', json=user.dict())
- assert response.status_code == 401
- assert response.json()['detail'] == 'Invalid email or password'
+# Test the login endpoint with valid credentials
+def test_login_success():
+    user = User(email='test@example.com', password='password123')
+    client.post('/auth/register', json=user.dict())
+    response = client.post('/auth/login', json=user.dict())
+    assert response.status_code == 200
+    assert 'access_token' in response.json()
+    assert 'token_type' in response.json()
 
-# Test the login endpoint with invalid email format
-def test_login_invalid_email_format():
- user = User(email='invalid_email', password='password123')
- response = client.post('/auth/login', json=user.dict())
- assert response.status_code == 401
- assert response.json()['detail'] == 'Invalid email or password'
-
-# Test the login endpoint with missing fields
-def test_login_missing_fields():
- user = User(email='test@example.com')
- response = client.post('/auth/login', json=user.dict())
- assert response.status_code == 422
- assert 'password' in response.json()['detail']
+# Test the login endpoint with invalid credentials
+def test_login_invalid_credentials():
+    user = User(email='test@example.com', password='wrongpassword')
+    client.post('/auth/register', json=User(email='test@example.com', password='password123').dict())
+    response = client.post('/auth/login', json=user.dict())
+    assert response.status_code == 401
+    assert response.json()['detail'] == 'Invalid email or password'

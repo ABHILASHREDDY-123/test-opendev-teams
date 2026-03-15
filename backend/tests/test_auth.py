@@ -3,35 +3,47 @@ from backend.auth import app
 from pydantic import BaseModel
 import pytest
 
-# Define the user model
 class User(BaseModel):
     email: str
     password: str
 
 class TestAuth:
     def test_register(self):
-        # Create a test client
         client = TestClient(app)
-        # Define a test user
-        user = {'email': 'test@example.com', 'password': 'password123'}
-        # Send a registration request
-        response = client.post('/auth/register', json=user)
-        # Assert that the response is successful
+        user = User(email='test@example.com', password='password123')
+        response = client.post('/auth/register', json=user.dict())
         assert response.status_code == 200
-        # Assert that the response contains the expected message
         assert response.json()['message'] == 'User created successfully'
 
     def test_login(self):
-        # Create a test client
         client = TestClient(app)
-        # Define a test user
-        user = {'email': 'test@example.com', 'password': 'password123'}
-        # Send a registration request
-        client.post('/auth/register', json=user)
-        # Send a login request
-        response = client.post('/auth/login', json=user)
-        # Assert that the response is successful
+        user = User(email='test@example.com', password='password123')
+        client.post('/auth/register', json=user.dict())
+        response = client.post('/auth/login', json=user.dict())
         assert response.status_code == 200
-        # Assert that the response contains the expected token
         assert 'access_token' in response.json()
         assert 'token_type' in response.json()
+
+    def test_duplicate_email(self):
+        client = TestClient(app)
+        user = User(email='test@example.com', password='password123')
+        client.post('/auth/register', json=user.dict())
+        response = client.post('/auth/register', json=user.dict())
+        assert response.status_code == 400
+        assert response.json()['detail'] == 'Email already registered'
+
+    def test_invalid_email(self):
+        client = TestClient(app)
+        user = User(email='invalid_email', password='password123')
+        response = client.post('/auth/login', json=user.dict())
+        assert response.status_code == 401
+        assert response.json()['detail'] == 'Invalid email or password'
+
+    def test_wrong_password(self):
+        client = TestClient(app)
+        user = User(email='test@example.com', password='password123')
+        client.post('/auth/register', json=user.dict())
+        user.password = 'wrong_password'
+        response = client.post('/auth/login', json=user.dict())
+        assert response.status_code == 401
+        assert response.json()['detail'] == 'Invalid email or password'

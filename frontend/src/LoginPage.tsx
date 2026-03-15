@@ -1,36 +1,39 @@
-<!-- LoginPage.tsx -->
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import axios from 'axios';
 
 const LoginPage = () => {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
-  const history = useHistory();
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // Call API to login
-    console.log(`Login with mobile: ${mobile} and password: ${password}`);
-    history.push('/contacts');
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/auth/login', { mobile, password });
+      // Handle successful login
+      console.log(response);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div>
-      <h1>Login Page</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Mobile:
-          <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
-        </label>
-        <br />
-        <label>
-          Password:
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <br />
-        <button type="submit">Login</button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit}>
+      <label>
+        Mobile:
+        <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+      </label>
+      <label>
+        Password:
+        <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+      </label>
+      <button type="submit">{loading ? 'Loading...' : 'Login'}</button>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+    </form>
   );
 };
 

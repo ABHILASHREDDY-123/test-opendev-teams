@@ -1,40 +1,31 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { useHistory } from 'react-router-dom';
 
 const AddContactForm = () => {
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+ const [name, setName] = useState('');
+ const [mobile, setMobile] = useState('');
+ const history = useHistory();
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    try {
-      const response = await axios.post('/api/contacts', { name, mobile });
-      // Handle successful contact addition
-      console.log(response);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const handleSubmit = (event) => {
+ event.preventDefault();
+ // Call API to add contact
+ history.push('/contacts');
+ };
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        Name:
-        <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
-      </label>
-      <label>
-        Mobile:
-        <input type="text" value={mobile} onChange={(event) => setMobile(event.target.value)} />
-      </label>
-      <button type="submit">{loading ? 'Loading...' : 'Add Contact'}</button>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
-    </form>
-  );
+ return (
+ <div>
+ <h1>Add Contact Form</h1>
+ <form onSubmit={handleSubmit}>
+ <label>Name:</label>
+ <input type='text' value={name} onChange={(event) => setName(event.target.value)} />
+ <br />
+ <label>Mobile:</label>
+ <input type='text' value={mobile} onChange={(event) => setMobile(event.target.value)} />
+ <br />
+ <button type='submit'>Add Contact</button>
+ </form>
+ </div>
+ );
 };
 
 export default AddContactForm;

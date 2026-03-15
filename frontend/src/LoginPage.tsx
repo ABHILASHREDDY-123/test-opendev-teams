@@ -1,34 +1,30 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useHistory } from 'react-router-dom';
 
 const LoginPage = () => {
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
-  const navigate = useNavigate();
+  const history = useHistory();
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    try {
-      const response = await axios.post('/api/auth/login', { mobile, password });
-      navigate('/contacts');
-    } catch (error) {
-      console.error(error);
-    }
+    // Call API to login
+    history.push('/contacts');
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        Mobile:
+    <div>
+      <h1>Login Page</h1>
+      <form onSubmit={handleSubmit}>
+        <label>Mobile:</label>
         <input type='text' value={mobile} onChange={(event) => setMobile(event.target.value)} />
-      </label>
-      <label>
-        Password:
+        <br />
+        <label>Password:</label>
         <input type='password' value={password} onChange={(event) => setPassword(event.target.value)} />
-      </label>
-      <button type='submit'>Login</button>
-    </form>
+        <br />
+        <button type='submit'>Login</button>
+      </form>
+    </div>
   );
 };
 

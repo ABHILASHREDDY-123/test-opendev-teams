@@ -1,0 +1,52 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import LoginPage from '../LoginPage';
+import { login } from '../api';
+
+jest.mock('../api');
+
+describe('LoginPage', () => {
+  it('renders login form', () => {
+    const { getByPlaceholderText, getByText } = render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+    expect(getByPlaceholderText('Mobile number')).toBeInTheDocument();
+    expect(getByPlaceholderText('Password')).toBeInTheDocument();
+    expect(getByText('Login')).toBeInTheDocument();
+  });
+
+  it('validates mobile number', async () => {
+    const { getByPlaceholderText, getByText } = render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+    const mobileInput = getByPlaceholderText('Mobile number');
+    const passwordInput = getByPlaceholderText('Password');
+    const loginButton = getByText('Login');
+
+    fireEvent.change(mobileInput, { target: { value: '123' } });
+    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    fireEvent.click(loginButton);
+
+    await waitFor(() => {
+      expect(login).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows loading state', async () => {
+    const { getByText } = render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+    const loginButton = getByText('Login');
+
+    fireEvent.click(loginButton);
+
+    expect(getByText('Loading...')).toBeInTheDocument();
+  });
+});

@@ -4,33 +4,32 @@ import { Contact } from './types';
 
 const ContactsPage = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('No authentication token');
         const data = await getContacts(token);
         setContacts(data);
       } catch (err) {
-        setError('Failed to load contacts');
+        setError(err.message || 'Failed to fetch contacts');
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
     fetchContacts();
-  }, []);
+  }, [token]);
 
-  if (isLoading) return <div>Loading...</div>;
+  if (loading) return <div>Loading...</div>;
   if (error) return <div style={{ color: 'red' }}>{error}</div>;
 
   return (
     <div>
-      <h2>Contacts</h2>
+      <h1>Contacts</h1>
       {contacts.length === 0 ? (
-        <p>No contacts yet. Add your first contact!</p>
+        <div>No contacts yet. Add your first contact!</div>
       ) : (
         <ul>
           {contacts.map((contact) => (

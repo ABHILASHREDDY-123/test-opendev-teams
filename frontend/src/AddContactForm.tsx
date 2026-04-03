@@ -1,27 +1,24 @@
 import React, { useState } from 'react';
 import { addContact } from './api';
-import { ContactForm } from './types';
 
 const AddContactForm = () => {
-  const [formData, setFormData] = useState<ContactForm>({ name: '', mobile: '' });
+  const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const token = localStorage.getItem('token');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     setError('');
-    setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No authentication token');
-      await addContact(token, formData.name, formData.mobile);
-      setSuccess(true);
-      setFormData({ name: '', mobile: '' });
+      await addContact(token, name, mobile);
+      // Refresh contacts list
     } catch (err) {
-      setError('Failed to add contact');
+      setError(err.message || 'Failed to add contact');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -29,19 +26,20 @@ const AddContactForm = () => {
     <form onSubmit={handleSubmit}>
       <input
         type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
         placeholder="Name"
-        value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
       />
       <input
         type="text"
+        value={mobile}
+        onChange={(e) => setMobile(e.target.value)}
         placeholder="Mobile"
-        value={formData.mobile}
-        onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
       />
-      <button type="submit" disabled={isLoading}>{isLoading ? 'Loading...' : 'Add Contact'}</button>
+      <button type="submit" disabled={loading}>
+        {loading ? 'Loading...' : 'Add Contact'}
+      </button>
       {error && <div style={{ color: 'red' }}>{error}</div>}
-      {success && <div style={{ color: 'green' }}>Contact added successfully!</div>}
     </form>
   );
 };

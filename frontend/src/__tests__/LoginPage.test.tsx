@@ -8,29 +8,28 @@ jest.mock('../api');
 
 describe('LoginPage', () => {
   it('renders login form', () => {
-    const { getByPlaceholderText, getByText } = render(
+    const { getByPlaceholderText } = render(
       <MemoryRouter>
         <LoginPage />
       </MemoryRouter>
     );
     expect(getByPlaceholderText('Mobile')).toBeInTheDocument();
     expect(getByPlaceholderText('Password')).toBeInTheDocument();
-    expect(getByText('Login')).toBeInTheDocument();
   });
 
   it('validates mobile number', async () => {
-    const { getByPlaceholderText, getByText } = render(
+    const { getByText, getByPlaceholderText } = render(
       <MemoryRouter>
         <LoginPage />
       </MemoryRouter>
     );
     const mobileInput = getByPlaceholderText('Mobile');
     const passwordInput = getByPlaceholderText('Password');
-    const loginButton = getByText('Login');
+    const submitButton = getByText('Login');
 
     fireEvent.change(mobileInput, { target: { value: '123' } });
     fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.click(loginButton);
+    fireEvent.click(submitButton);
 
     await waitFor(() => {
       expect(login).not.toHaveBeenCalled();

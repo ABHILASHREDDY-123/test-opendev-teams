@@ -46,16 +46,21 @@ async def update_contact(contact_id: str, contact: ContactUpdate, current_user: 
     user_contacts = contacts_db.get(current_user['id'], [])
     for stored_contact in user_contacts:
         if stored_contact['id'] == contact_id:
-            updated = stored_contact.copy()
-            updated.update(contact.dict(exclude_unset=True))
-            return ContactOut(**updated)
+            updated_contact = stored_contact.copy()
+            if contact.name is not None:
+                updated_contact['name'] = contact.name
+            if contact.mobile is not None:
+                updated_contact['mobile'] = contact.mobile
+            user_contacts.remove(stored_contact)
+            user_contacts.append(updated_contact)
+            return ContactOut(**updated_contact)
     raise HTTPException(status_code=404, detail='Contact not found')
 
 @app.delete('/contacts/{contact_id}')
 async def delete_contact(contact_id: str, current_user: dict = Depends(get_current_user)):
     user_contacts = contacts_db.get(current_user['id'], [])
-    for i, stored_contact in enumerate(user_contacts):
-        if stored_contact['id'] == contact_id:
-            del user_contacts[i]
+    for contact in user_contacts:
+        if contact['id'] == contact_id:
+            user_contacts.remove(contact)
             return {'message': 'Contact deleted successfully'}
     raise HTTPException(status_code=404, detail='Contact not found')

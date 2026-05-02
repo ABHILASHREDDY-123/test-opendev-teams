@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LoginPage } from '../LoginPage';
@@ -276,7 +275,10 @@ describe('LoginPage', () => {
       });
 
       const submitButton = screen.getByRole('button', { name: /login/i });
-      fireEvent.click(submitButton);
+      
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
 
       await waitFor(() => {
         expect(mockOnLoginSuccess).not.toHaveBeenCalled();
@@ -301,14 +303,16 @@ describe('LoginPage', () => {
         await userEvent.type(passwordInput, 'password123');
       });
 
-      const submitButton = screen.getByRole('button', { name: /login/i });
-      
+      const submitButton = screen.getByRole('button', { name: /login/i }) as HTMLButtonElement;
+
       await act(async () => {
         fireEvent.click(submitButton);
       });
 
+      // Check that inputs are disabled during loading
       expect(mobileInput.disabled).toBe(true);
       expect(passwordInput.disabled).toBe(true);
+      expect(submitButton.disabled).toBe(true);
     });
   });
 });

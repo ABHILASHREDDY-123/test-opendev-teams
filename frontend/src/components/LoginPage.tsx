@@ -80,6 +80,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       // Store token and redirect
       if (result.data?.access_token) {
         apiClient.setToken(result.data.access_token);
+        setLoading(false);
         onLoginSuccess();
       }
     } catch (error) {

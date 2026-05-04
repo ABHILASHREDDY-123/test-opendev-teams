@@ -502,3 +502,182 @@ class TestErrorCodes:
             headers={"Authorization": f"Bearer {fake_token}"},
         )
         assert response.status_code == 404
+
+
+class TestAdminRole:
+    """Test admin role support in registration"""
+
+    def test_register_admin_user(self):
+        """Test registering an admin user"""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+                "name": "Admin User",
+                "role": "admin",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["email"] == "admin@example.com"
+        assert data["name"] == "Admin User"
+        assert data["role"] == "admin"
+
+    def test_register_customer_user_explicit(self):
+        """Test registering a customer user with explicit role"""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "customer@example.com",
+                "password": "custpass123",
+                "name": "Customer User",
+                "role": "customer",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["role"] == "customer"
+
+    def test_register_default_customer_role(self):
+        """Test that default role is customer when not specified"""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "user@example.com",
+                "password": "password123",
+                "name": "Test User",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["role"] == "customer"
+
+    def test_invalid_role(self):
+        """Test registration with invalid role"""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "user@example.com",
+                "password": "password123",
+                "name": "Test User",
+                "role": "superuser",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_admin_token_contains_admin_role(self):
+        """Test that admin user's JWT token contains admin role"""
+        # Register admin user
+        reg_response = client.post(
+            "/auth/register",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+                "name": "Admin User",
+                "role": "admin",
+            },
+        )
+        assert reg_response.status_code == 201
+
+        # Login
+        login_response = client.post(
+            "/auth/login",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Decode token
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        assert payload["role"] == "admin"
+
+    def test_admin_user_profile_shows_admin_role(self):
+        """Test that admin user's profile shows admin role"""
+        # Register admin user
+        client.post(
+            "/auth/register",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+                "name": "Admin User",
+                "role": "admin",
+            },
+        )
+
+        # Login
+        login_response = client.post(
+            "/auth/login",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+            },
+        )
+        token = login_response.json()["access_token"]
+
+        # Get profile
+        profile_response = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert profile_response.status_code == 200
+        data = profile_response.json()
+        assert data["role"] == "admin"
+
+    def test_multiple_admin_users(self):
+        """Test registering multiple admin users"""
+        # Register first admin
+        response1 = client.post(
+            "/auth/register",
+            json={
+                "email": "admin1@example.com",
+                "password": "adminpass123",
+                "name": "Admin 1",
+                "role": "admin",
+            },
+        )
+        assert response1.status_code == 201
+
+        # Register second admin
+        response2 = client.post(
+            "/auth/register",
+            json={
+                "email": "admin2@example.com",
+                "password": "adminpass456",
+                "name": "Admin 2",
+                "role": "admin",
+            },
+        )
+        assert response2.status_code == 201
+        assert response2.json()["role"] == "admin"
+
+    def test_mixed_admin_and_customer_users(self):
+        """Test registering both admin and customer users"""
+        # Register admin
+        admin_response = client.post(
+            "/auth/register",
+            json={
+                "email": "admin@example.com",
+                "password": "adminpass123",
+                "name": "Admin User",
+                "role": "admin",
+            },
+        )
+        assert admin_response.status_code == 201
+        assert admin_response.json()["role"] == "admin"
+
+        # Register customer
+        customer_response = client.post(
+            "/auth/register",
+            json={
+                "email": "customer@example.com",
+                "password": "custpass123",
+                "name": "Customer User",
+                "role": "customer",
+            },
+        )
+        assert customer_response.status_code == 201
+        assert customer_response.json()["role"] == "customer"

@@ -30,6 +30,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str
+    role: Optional[str] = "customer"
 
     @field_validator("password")
     @classmethod
@@ -43,6 +44,13 @@ class RegisterRequest(BaseModel):
     def validate_name(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Name must be non-empty")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in ["customer", "admin"]:
+            raise ValueError("Role must be either 'customer' or 'admin'")
         return v
 
 
@@ -162,7 +170,7 @@ def register(request: RegisterRequest) -> UserResponse:
         "name": request.name,
         "password_hash": hash_password(request.password),
         "created_at": created_at,
-        "role": "customer",
+        "role": request.role,
     }
     
     users_db[user_id] = user
@@ -172,7 +180,7 @@ def register(request: RegisterRequest) -> UserResponse:
         email=request.email,
         name=request.name,
         created_at=created_at,
-        role="customer",
+        role=request.role,
     )
 
 

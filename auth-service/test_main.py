@@ -1,6 +1,6 @@
 """
 Unit tests for Auth Service
-Covers happy paths, error cases, JWT validation, and password hashing.
+Covers happy paths, error cases, JWT validation, password hashing, and admin role support.
 """
 
 import pytest
@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from jose import jwt
 import os
 
-from main import app, users_db, JWT_SECRET, JWT_ALGORITHM, hash_password, verify_password
+from main import app, users_db, JWT_SECRET, JWT_ALGORITHM, ADMIN_SECRET, hash_password, verify_password
 
 client = TestClient(app)
 
@@ -120,6 +120,74 @@ class TestRegister:
 
 
 # ============================================================================
+# Admin Registration Tests
+# ============================================================================
+
+class TestAdminRegister:
+    """Tests for /auth/admin/register endpoint"""
+    
+    def test_admin_register_success(self):
+        """Test successful admin registration"""
+        response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data["email"] == "admin@example.com"
+        assert data["name"] == "Admin User"
+        assert data["role"] == "admin"
+        assert "id" in data
+    
+    def test_admin_register_invalid_secret(self):
+        """Test admin registration with invalid secret"""
+        response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": "wrong-secret"
+        })
+        
+        assert response.status_code == 401
+        assert "Invalid admin secret" in response.json()["detail"]
+    
+    def test_admin_register_invalid_email(self):
+        """Test admin registration with invalid email"""
+        response = client.post("/auth/admin/register", json={
+            "email": "invalid-email",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        assert response.status_code == 400
+        assert "Invalid email format" in response.json()["detail"]
+    
+    def test_admin_register_duplicate_email(self):
+        """Test admin registration with duplicate email"""
+        # Register customer first
+        client.post("/auth/register", json={
+            "email": "user@example.com",
+            "password": "password123",
+            "name": "User"
+        })
+        
+        # Try to register admin with same email
+        response = client.post("/auth/admin/register", json={
+            "email": "user@example.com",
+            "password": "adminpass123",
+            "name": "Admin",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        assert response.status_code == 409
+        assert "already registered" in response.json()["detail"]
+
+
+# ============================================================================
 # Login Tests
 # ============================================================================
 
@@ -146,6 +214,27 @@ class TestLogin:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
         assert len(data["access_token"]) > 0
+    
+    def test_login_admin_success(self):
+        """Test successful admin login"""
+        # Register admin first
+        client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        # Login
+        response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
     
     def test_login_invalid_email(self):
         """Test login with non-existent email"""
@@ -175,8 +264,8 @@ class TestLogin:
         assert response.status_code == 401
         assert "Invalid email or password" in response.json()["detail"]
     
-    def test_login_token_format(self):
-        """Test that login returns valid JWT token"""
+    def test_login_token_includes_customer_role(self):
+        """Test that customer login token includes customer role"""
         # Register
         client.post("/auth/register", json={
             "email": "user@example.com",
@@ -191,13 +280,28 @@ class TestLogin:
         })
         
         token = response.json()["access_token"]
-        
-        # Decode token
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        assert payload["email"] == "user@example.com"
         assert payload["role"] == "customer"
-        assert "sub" in payload  # user_id
-        assert "exp" in payload  # expiry
+    
+    def test_login_token_includes_admin_role(self):
+        """Test that admin login token includes admin role"""
+        # Register admin
+        client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        # Login
+        response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        
+        token = response.json()["access_token"]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        assert payload["role"] == "admin"
 
 
 # ============================================================================
@@ -237,6 +341,36 @@ class TestGetCurrentUser:
         assert data["name"] == "John Doe"
         assert data["role"] == "customer"
     
+    def test_get_current_admin_success(self):
+        """Test getting current admin profile with valid token"""
+        # Register admin
+        reg_response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        admin_id = reg_response.json()["id"]
+        
+        # Login
+        login_response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        token = login_response.json()["access_token"]
+        
+        # Get current user
+        response = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == admin_id
+        assert data["email"] == "admin@example.com"
+        assert data["role"] == "admin"
+    
     def test_get_current_user_missing_token(self):
         """Test getting current user without token"""
         response = client.get("/auth/me")
@@ -259,7 +393,7 @@ class TestGetCurrentUser:
         
         # Create an expired token
         now = datetime.now(timezone.utc)
-        expired_time = now - timedelta(hours=25)  # Expired 1 hour ago
+        expired_time = now - timedelta(hours=25)
         
         payload = {
             "sub": "fake-user-id",
@@ -278,6 +412,74 @@ class TestGetCurrentUser:
         
         assert response.status_code == 401
         assert "Invalid or expired token" in response.json()["detail"]
+
+
+# ============================================================================
+# Admin Verification Tests
+# ============================================================================
+
+class TestAdminVerify:
+    """Tests for /auth/admin/verify endpoint"""
+    
+    def test_admin_verify_success(self):
+        """Test admin verification with valid admin token"""
+        # Register admin
+        reg_response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        admin_id = reg_response.json()["id"]
+        
+        # Login
+        login_response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        token = login_response.json()["access_token"]
+        
+        # Verify admin
+        response = client.get(
+            "/auth/admin/verify",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == admin_id
+        assert data["role"] == "admin"
+    
+    def test_admin_verify_customer_denied(self):
+        """Test admin verification denied for customer"""
+        # Register customer
+        client.post("/auth/register", json={
+            "email": "user@example.com",
+            "password": "password123",
+            "name": "John Doe"
+        })
+        
+        # Login
+        login_response = client.post("/auth/login", json={
+            "email": "user@example.com",
+            "password": "password123"
+        })
+        token = login_response.json()["access_token"]
+        
+        # Try to verify as admin
+        response = client.get(
+            "/auth/admin/verify",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 403
+        assert "Admin access required" in response.json()["detail"]
+    
+    def test_admin_verify_missing_token(self):
+        """Test admin verification without token"""
+        response = client.get("/auth/admin/verify")
+        
+        assert response.status_code == 403
 
 
 # ============================================================================
@@ -357,8 +559,8 @@ class TestJWTToken:
         # Should be between 23 and 25 hours (in seconds)
         assert 82800 < diff < 90000  # 23h to 25h
     
-    def test_jwt_token_payload(self):
-        """Test JWT token contains correct payload"""
+    def test_jwt_token_payload_customer(self):
+        """Test JWT token contains correct customer payload"""
         # Register and login
         reg_response = client.post("/auth/register", json={
             "email": "user@example.com",
@@ -378,6 +580,31 @@ class TestJWTToken:
         assert payload["sub"] == user_id
         assert payload["email"] == "user@example.com"
         assert payload["role"] == "customer"
+        assert "exp" in payload
+        assert "iat" in payload
+    
+    def test_jwt_token_payload_admin(self):
+        """Test JWT token contains correct admin payload"""
+        # Register admin and login
+        reg_response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        admin_id = reg_response.json()["id"]
+        
+        login_response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        
+        token = login_response.json()["access_token"]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        assert payload["sub"] == admin_id
+        assert payload["email"] == "admin@example.com"
+        assert payload["role"] == "admin"
         assert "exp" in payload
         assert "iat" in payload
 
@@ -419,6 +646,39 @@ class TestIntegration:
         assert profile["id"] == user_id
         assert profile["email"] == "user@example.com"
         assert profile["name"] == "John Doe"
+        assert profile["role"] == "customer"
+    
+    def test_admin_register_login_verify_workflow(self):
+        """Test complete admin workflow: register -> login -> verify"""
+        # Register admin
+        reg_response = client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin User",
+            "admin_secret": ADMIN_SECRET
+        })
+        assert reg_response.status_code == 201
+        admin_id = reg_response.json()["id"]
+        
+        # Login
+        login_response = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+        
+        # Verify admin
+        verify_response = client.get(
+            "/auth/admin/verify",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert verify_response.status_code == 200
+        admin = verify_response.json()
+        
+        assert admin["id"] == admin_id
+        assert admin["email"] == "admin@example.com"
+        assert admin["role"] == "admin"
     
     def test_multiple_users_independent_tokens(self):
         """Test that multiple users have independent tokens"""
@@ -466,6 +726,53 @@ class TestIntegration:
         assert profile1["email"] == "user1@example.com"
         assert profile2["email"] == "user2@example.com"
         assert profile1["id"] != profile2["id"]
+    
+    def test_admin_and_customer_coexist(self):
+        """Test that admin and customer users can coexist"""
+        # Register customer
+        client.post("/auth/register", json={
+            "email": "user@example.com",
+            "password": "password123",
+            "name": "User"
+        })
+        
+        # Register admin
+        client.post("/auth/admin/register", json={
+            "email": "admin@example.com",
+            "password": "adminpass123",
+            "name": "Admin",
+            "admin_secret": ADMIN_SECRET
+        })
+        
+        # Login customer
+        login_customer = client.post("/auth/login", json={
+            "email": "user@example.com",
+            "password": "password123"
+        })
+        customer_token = login_customer.json()["access_token"]
+        
+        # Login admin
+        login_admin = client.post("/auth/login", json={
+            "email": "admin@example.com",
+            "password": "adminpass123"
+        })
+        admin_token = login_admin.json()["access_token"]
+        
+        # Get customer profile
+        customer_profile = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {customer_token}"}
+        ).json()
+        
+        # Get admin profile
+        admin_profile = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        ).json()
+        
+        # Verify roles
+        assert customer_profile["role"] == "customer"
+        assert admin_profile["role"] == "admin"
 
 
 # ============================================================================

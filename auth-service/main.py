@@ -1,6 +1,7 @@
 """
 Auth Service for E-Commerce Platform
 Handles user registration, login, and profile retrieval with JWT authentication.
+Supports both customer and admin roles.
 """
 
 import os
@@ -19,6 +20,7 @@ from jose import JWTError, jwt
 JWT_SECRET = os.getenv("JWT_SECRET", "ecommerce-platform-secret-key-2026")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "admin-creation-secret-2026")
 
 # Password hashing - use argon2 for better compatibility
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -42,6 +44,14 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="Password (min 8 chars)")
     name: str = Field(..., min_length=1, description="User name")
+
+
+class AdminRegisterRequest(BaseModel):
+    """Admin user registration request"""
+    email: str = Field(..., description="Admin email address")
+    password: str = Field(..., min_length=8, description="Password (min 8 chars)")
+    name: str = Field(..., min_length=1, description="Admin name")
+    admin_secret: str = Field(..., description="Admin creation secret")
 
 
 class LoginRequest(BaseModel):
@@ -86,15 +96,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def generate_jwt_token(user_id: str, email: str) -> str:
-    """Generate JWT token with 24h expiry"""
+def generate_jwt_token(user_id: str, email: str, role: str = "customer") -> str:
+    """Generate JWT token with 24h expiry and user role"""
     now = datetime.now(timezone.utc)
     expiry = now + timedelta(hours=JWT_EXPIRY_HOURS)
     
     payload = {
         "sub": user_id,
         "email": email,
-        "role": "customer",
+        "role": role,
         "exp": expiry,
         "iat": now
     }
@@ -130,6 +140,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     return users_db[user_id]
 
 
+def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
+    """Dependency to ensure current user is an admin"""
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return user
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -137,13 +157,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 @app.post("/auth/register", response_model=UserProfile, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest) -> UserProfile:
     """
-    Register a new user.
+    Register a new customer user.
     
     - email: Valid email address
     - password: At least 8 characters
     - name: Non-empty name
     
-    Returns user profile with generated ID.
+    Returns user profile with generated ID and customer role.
     """
     # Validate email format
     if not validate_email(request.email):
@@ -174,7 +194,7 @@ def register(request: RegisterRequest) -> UserProfile:
                 detail="Email already registered"
             )
     
-    # Create user
+    # Create user with customer role
     user_id = str(uuid.uuid4())
     user_data = {
         "id": user_id,
@@ -194,12 +214,83 @@ def register(request: RegisterRequest) -> UserProfile:
     )
 
 
+@app.post("/auth/admin/register", response_model=UserProfile, status_code=status.HTTP_201_CREATED)
+def register_admin(request: AdminRegisterRequest) -> UserProfile:
+    """
+    Register a new admin user.
+    
+    Requires admin_secret for security. This endpoint is used for platform setup
+    and testing admin functionality.
+    
+    - email: Valid email address
+    - password: At least 8 characters
+    - name: Non-empty name
+    - admin_secret: Secret key for admin creation
+    
+    Returns user profile with generated ID and admin role.
+    """
+    # Verify admin secret
+    if request.admin_secret != ADMIN_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin secret"
+        )
+    
+    # Validate email format
+    if not validate_email(request.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email format"
+        )
+    
+    # Validate password length
+    if len(request.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters"
+        )
+    
+    # Validate name is non-empty
+    if not request.name or not request.name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name cannot be empty"
+        )
+    
+    # Check for duplicate email
+    for user in users_db.values():
+        if user["email"] == request.email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered"
+            )
+    
+    # Create admin user
+    user_id = str(uuid.uuid4())
+    user_data = {
+        "id": user_id,
+        "email": request.email,
+        "name": request.name,
+        "password_hash": hash_password(request.password),
+        "role": "admin"
+    }
+    
+    users_db[user_id] = user_data
+    
+    return UserProfile(
+        id=user_id,
+        email=request.email,
+        name=request.name,
+        role="admin"
+    )
+
+
 @app.post("/auth/login", response_model=TokenResponse)
 def login(request: LoginRequest) -> TokenResponse:
     """
     Login with email and password.
     
-    Returns JWT access token with 24h expiry.
+    Returns JWT access token with 24h expiry. Token includes user role (customer or admin).
     """
     # Find user by email
     user = None
@@ -221,8 +312,8 @@ def login(request: LoginRequest) -> TokenResponse:
             detail="Invalid email or password"
         )
     
-    # Generate JWT token
-    token = generate_jwt_token(user["id"], user["email"])
+    # Generate JWT token with user's actual role
+    token = generate_jwt_token(user["id"], user["email"], user["role"])
     
     return TokenResponse(
         access_token=token,
@@ -236,12 +327,29 @@ def get_current_user_profile(user: dict = Depends(get_current_user)) -> UserProf
     Get current user profile from JWT token.
     
     Requires valid JWT in Authorization header (Bearer token).
+    Returns user profile including role (customer or admin).
     """
     return UserProfile(
         id=user["id"],
         email=user["email"],
         name=user["name"],
         role=user["role"]
+    )
+
+
+@app.get("/auth/admin/verify", response_model=UserProfile)
+def verify_admin(admin: dict = Depends(get_admin_user)) -> UserProfile:
+    """
+    Verify that current user is an admin.
+    
+    Requires valid JWT with admin role in Authorization header.
+    Returns admin user profile.
+    """
+    return UserProfile(
+        id=admin["id"],
+        email=admin["email"],
+        name=admin["name"],
+        role=admin["role"]
     )
 
 
